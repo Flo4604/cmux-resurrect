@@ -56,6 +56,18 @@ func ExpandHome(path string) string {
 	return path
 }
 
+// Save writes the config to a TOML file, creating parent dirs if needed.
+func Save(path string, cfg *Config) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	data, err := toml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
+}
+
 // Load reads config from a TOML file, falling back to defaults.
 func Load(path string) (*Config, error) {
 	cfg := DefaultConfig()

@@ -101,11 +101,19 @@ func flameWing(s string, reverse bool, gradient []lipgloss.Color) string {
 }
 
 // flameLine applies the flame→green gradient across a full line of text.
-// Visible characters are colored left-to-right: ember → gold → green.
+// Visible characters are colored left-to-right: orange → gold → green.
 // Used for the cmux-resurrect banner where there are no separate wings.
+// Skips the darkest ember colors (indices 0-1) since those are invisible on
+// dark backgrounds — wings are only ~10 chars so the dark start works there,
+// but the full banner is ~75 chars and needs a brighter starting point.
 func flameLine(s string, th theme) string {
-	grad := make([]lipgloss.Color, len(th.flame)+1)
-	copy(grad, th.flame)
+	skip := 2
+	if !th.dark {
+		skip = 0 // light theme colours are all high-contrast
+	}
+	trimmed := th.flame[skip:]
+	grad := make([]lipgloss.Color, len(trimmed)+1)
+	copy(grad, trimmed)
 	grad[len(grad)-1] = th.green
 	return gradientText(s, grad, false, true)
 }
@@ -132,8 +140,10 @@ func banner() string {
 			switch mode {
 			case bannerPlain:
 				b.WriteString(plainStyle.Render(line))
-			default:
+			case bannerClassic:
 				b.WriteString(bannerGreen.Render(line))
+			default:
+				b.WriteString(flameLine(line, th))
 			}
 			b.WriteString("\n")
 		}
@@ -215,7 +225,7 @@ func styledHelp() string {
 	helpCmd(&b, "delete", "<name>", "Delete a layout")
 	helpCmd(&b, "watch", "[name]", "Auto-save on a timer (--daemon, --stop, --status)")
 	helpCmd(&b, "setup", "", "First-run wizard")
-	helpCmd(&b, "tui", "", "Interactive shell")
+	helpCmd(&b, "tui / shell", "", "Interactive shell")
 	helpCmd(&b, "import-from-md", "", "Import from Blueprint")
 	helpCmd(&b, "export-to-md", "", "Export to Blueprint")
 	helpCmd(&b, "blueprint", "<cmd>", "Manage Blueprint (add|remove|list|toggle)")

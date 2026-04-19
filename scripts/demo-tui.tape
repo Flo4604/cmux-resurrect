@@ -12,7 +12,7 @@ Set TypingSpeed 30ms
 Set CursorBlink false
 Set Shell "bash"
 
-# Hidden setup: alias crex to use demo config
+# Hidden setup: force Ghostty branding + alias to demo binary
 Hide
 Type "unset CMUX_SOCKET_PATH CMUX_WORKSPACE_ID"
 Enter
@@ -56,19 +56,7 @@ Sleep 1s
 Type "q"
 Sleep 1s
 
-# ── Scene 4: Restore by number ────────────────────────────
-
-Type "restore 2"
-Enter
-Sleep 4s
-
-# ── Scene 5: Show live state ──────────────────────────────
-
-Type "now"
-Enter
-Sleep 3s
-
-# ── Scene 6: Browse template gallery ─────────────────────
+# ── Scene 4: Browse template gallery ─────────────────────
 
 Type "templates"
 Enter
@@ -84,7 +72,7 @@ Sleep 1s
 Type "q"
 Sleep 1s
 
-# ── Scene 7: Blueprint management ────────────────────────
+# ── Scene 5: Blueprint management ────────────────────────
 
 Type "bp list"
 Enter
@@ -92,13 +80,19 @@ Sleep 2s
 Type "q"
 Sleep 1s
 
-# ── Scene 8: Watch status ────────────────────────────────
+# ── Scene 6: Switch banner style ────────────────────────
+
+Type "banner classic"
+Enter
+Sleep 2s
+
+# ── Scene 7: Watch status ────────────────────────────────
 
 Type "watch status"
 Enter
 Sleep 2s
 
-# ── Scene 9: Exit ────────────────────────────────────────
+# ── Scene 8: Exit ────────────────────────────────────────
 
 Type "exit"
 Enter

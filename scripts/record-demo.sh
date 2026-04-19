@@ -103,7 +103,9 @@ cp "$PROJECT_DIR/testdata/layouts/my-day.toml" "$DEMO_DIR/layouts/" 2>/dev/null 
 
 # Create a simple Blueprint for the demo.
 cat > "$DEMO_DIR/workspaces.md" << 'MDEOF'
+
 ## Projects
+
 **Icon | Name | Template | Pin | Path**
 
 - [x] | 🌐 | webapp     | dev    | yes | ~/projects/webapp
@@ -112,15 +114,19 @@ cat > "$DEMO_DIR/workspaces.md" << 'MDEOF'
 ## Templates
 
 ### dev
+
 - [x] main terminal (focused)
 - [x] split right: `npm run dev`
 
 ### go
+
 - [x] main terminal (focused)
 - [x] split right: `go test ./...`
 
 ### single
+
 - [x] main terminal (focused)
+
 MDEOF
 
 # Keep a clean copy of my-day.toml — the VHS script runs 'crex save my-day' which

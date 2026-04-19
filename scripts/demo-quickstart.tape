@@ -16,7 +16,7 @@ Hide
 Type "shopt -s interactive_comments"
 Enter
 Sleep 200ms
-Type "unset CMUX_SOCKET_PATH CMUX_WORKSPACE_ID"
+Type "export CREX_BRAND=crex"
 Enter
 Sleep 200ms
 Type "alias crex='/usr/local/bin/crex --config /tmp/crex-qs/config.toml'"

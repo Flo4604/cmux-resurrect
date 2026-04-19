@@ -5,7 +5,7 @@
 Output assets/demo.gif
 Set FontSize 14
 Set Width 1000
-Set Height 600
+Set Height 650
 Set Theme "Catppuccin Mocha"
 Set Padding 20
 Set TypingSpeed 20ms
@@ -17,7 +17,7 @@ Hide
 Type "shopt -s interactive_comments"
 Enter
 Sleep 200ms
-Type "unset CMUX_SOCKET_PATH CMUX_WORKSPACE_ID"
+Type "export CREX_BRAND=crex"
 Enter
 Sleep 200ms
 Type "alias crex='/usr/local/bin/crex --config /tmp/crex-demo/config.toml'"
@@ -42,7 +42,7 @@ Sleep 3s
 Hide
 Type "clear"
 Enter
-Sleep 1s
+Sleep 2s
 Show
 
 Type "# View the Blueprint"
@@ -57,7 +57,7 @@ Sleep 3s
 Hide
 Type "clear"
 Enter
-Sleep 1s
+Sleep 2s
 Show
 
 Type "# Create workspaces from the Blueprint"
@@ -65,21 +65,22 @@ Enter
 Sleep 500ms
 Type "crex import-from-md"
 Enter
-Sleep 3s
+Sleep 6s
 
 # ── Scene 4: Save + List ─────────────────────────────────
 
 # Hidden: save once and swap in clean toml (avoids leaking real tabs)
 Hide
+Sleep 1s
 Type "crex save my-day 2>/dev/null"
 Enter
-Sleep 2s
+Sleep 4s
 Type "cp /tmp/crex-demo/my-day-clean.toml /tmp/crex-demo/layouts/my-day.toml"
 Enter
-Sleep 500ms
+Sleep 1s
 Type "clear"
 Enter
-Sleep 1s
+Sleep 2s
 Show
 
 Type "# Save and list layouts"
@@ -87,16 +88,17 @@ Enter
 Sleep 500ms
 Type "crex save my-day -d 'Friday deep work'"
 Enter
-Sleep 2s
+Sleep 4s
 
 # Hidden: swap clean toml again and clear
 Hide
+Sleep 1s
 Type "cp /tmp/crex-demo/my-day-clean.toml /tmp/crex-demo/layouts/my-day.toml"
 Enter
-Sleep 500ms
+Sleep 1s
 Type "clear"
 Enter
-Sleep 1s
+Sleep 2s
 Show
 
 Type "crex list"
@@ -107,12 +109,13 @@ Sleep 3s
 
 # Hidden: close workspaces created by import so restore creates them fresh.
 Hide
+Sleep 1s
 Type "/tmp/crex-demo/close-demo-tabs.sh"
 Enter
-Sleep 2s
+Sleep 4s
 Type "clear"
 Enter
-Sleep 1s
+Sleep 2s
 Show
 
 Type "# Restore a saved layout"
@@ -120,14 +123,15 @@ Enter
 Sleep 500ms
 Type "crex restore my-day --mode add"
 Enter
-Sleep 3s
+Sleep 5s
 
 # ── Scene 6: Add entry to Blueprint ──────────────────────
 
 Hide
+Sleep 1s
 Type "clear"
 Enter
-Sleep 1s
+Sleep 2s
 Show
 
 Type "# Manage the Blueprint"

@@ -132,10 +132,8 @@ func banner() string {
 			switch mode {
 			case bannerPlain:
 				b.WriteString(plainStyle.Render(line))
-			case bannerClassic:
-				b.WriteString(bannerGreen.Render(line))
 			default:
-				b.WriteString(flameLine(line, th))
+				b.WriteString(bannerGreen.Render(line))
 			}
 			b.WriteString("\n")
 		}
@@ -167,6 +165,9 @@ func banner() string {
 			b.WriteString("\n")
 		}
 	}
+
+	// Blank line between banner art and tagline.
+	b.WriteString("\n")
 
 	// Tagline with accented "resurrected."
 	b.WriteString(renderTagline(th, mode))

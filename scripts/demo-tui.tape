@@ -14,6 +14,9 @@ Set Shell "bash"
 
 # Hidden setup: alias crex to use demo config
 Hide
+Type "unset CMUX_SOCKET_PATH CMUX_WORKSPACE_ID"
+Enter
+Sleep 200ms
 Type "alias crex='/tmp/crex-demo-tui-bin --config /tmp/crex-demo-tui-env/config.toml'"
 Enter
 Sleep 500ms

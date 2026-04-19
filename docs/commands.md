@@ -147,12 +147,15 @@ Listings show numbered items (`[1]`, `[2]`, …) — use the number instead of t
 ## Watch Daemon Mode
 
 ```sh
-crex watch --daemon                 # start daemon (PID file, log file)
+crex watch --daemon                 # start daemon — saves as "autosave"
+crex watch my-project --daemon      # start daemon — saves as "my-project"
 crex watch --stop                   # stop running daemon
 crex watch --status                 # check daemon status
 crex watch --shell-hook             # print shell auto-start snippet
 crex watch --shell-hook >> ~/.zshrc # install the hook
 ```
+
+**Default name:** When no name is given, watch saves under `autosave`. To recover: `crex restore autosave`.
 
 | Flag | Description |
 |------|-------------|
@@ -160,6 +163,7 @@ crex watch --shell-hook >> ~/.zshrc # install the hook
 | `--stop` | Kill the running daemon |
 | `--status` | Check if the daemon is alive |
 | `--shell-hook` | Print a shell snippet that auto-starts the daemon |
+| `-i, --interval` | Save interval (default: 5m) |
 
 ## Common Recipes
 
@@ -185,7 +189,14 @@ crex restore my-day
 
 ### Auto-save every 2 minutes
 ```sh
-crex watch autosave --interval 2m
+crex watch --interval 2m            # saves as "autosave" (default name)
+crex watch my-project --interval 2m # saves as "my-project"
+```
+
+### Recover after a crash
+```sh
+crex restore autosave               # if using default watch name
+crex restore my-project             # if using a custom name
 ```
 
 ### Auto-start daemon on shell login

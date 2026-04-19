@@ -31,10 +31,24 @@ crex watch --status             # check if the daemon is running
 crex watch --stop               # stop the daemon
 ```
 
+### Default save name
+
+When you run `crex watch` without a name, it saves under **`autosave`**. To recover after a crash or reboot:
+
+```sh
+crex restore autosave           # recover your last auto-saved layout
+```
+
+To auto-save under a specific name instead:
+
+```sh
+crex watch my-project --daemon  # saves as "my-project" instead of "autosave"
+```
+
 How it works:
 - PID file at `~/.config/crex/crex.pid`
 - Logs to `~/.config/crex/watch.log` (1 MB rotation, one `.old` backup)
-- Content-hash deduplication (same as foreground mode)
+- Content-hash deduplication (same as foreground mode) — identical layouts are never saved twice
 - Set `CREX_NO_WATCH=1` to prevent auto-start from shell hooks
 
 ### Shell Hook (auto-start on login)

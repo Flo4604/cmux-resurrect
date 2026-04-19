@@ -59,5 +59,6 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, dimStyle.Render(fmt.Sprintf("  %d layout(s)", len(metas))))
+	fmt.Fprintln(os.Stderr)
 	return nil
 }

@@ -6,11 +6,18 @@ import (
 	"strings"
 	"syscall"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/drolosoft/cmux-resurrect/internal/gallery"
 	"github.com/drolosoft/cmux-resurrect/internal/mdfile"
 	"github.com/drolosoft/cmux-resurrect/internal/model"
 	"github.com/drolosoft/cmux-resurrect/internal/orchestrate"
 )
+
+// restoreResultMsg carries the result of an async restore operation.
+type restoreResultMsg struct {
+	result *orchestrate.RestoreResult
+	err    error
+}
 
 // execNow renders the current live workspace/tab tree. Read-only — does not
 // populate lastItems or enter browse mode.
@@ -133,40 +140,45 @@ func (m *ShellModel) execSave(name string) {
 }
 
 // execRestore restores a saved layout by name.
-func (m *ShellModel) execRestore(name string) {
+func (m *ShellModel) execRestore(name string) tea.Cmd {
 	if m.client == nil {
 		m.output.WriteString(shellErrorStyle.Render("  ✗ No backend connected"))
 		m.output.WriteString("\n\n")
-		return
+		return nil
 	}
 
 	m.output.WriteString(shellDimStyle.Render(fmt.Sprintf("  Restoring %q…", name)))
 	m.output.WriteString("\n")
 
-	restorer := &orchestrate.Restorer{
-		Client: m.client,
-		Store:  m.store,
-		OnProgress: func(title string, panes int, err error) {
-			if err != nil {
-				m.output.WriteString(shellDimStyle.Render(fmt.Sprintf("  ⚠ %s: %v", title, err)))
-			} else {
-				m.output.WriteString(shellDimStyle.Render(fmt.Sprintf("  ✓ %s (%d pane(s))", title, panes)))
-			}
-			m.output.WriteString("\n")
-		},
+	// Run restore asynchronously so "Restoring..." renders immediately.
+	cl := m.client
+	store := m.store
+	return func() tea.Msg {
+		restorer := &orchestrate.Restorer{
+			Client: cl,
+			Store:  store,
+		}
+		result, err := restorer.Restore(name, false, orchestrate.RestoreModeAdd)
+		return restoreResultMsg{result: result, err: err}
 	}
+}
 
-	result, err := restorer.Restore(name, false, orchestrate.RestoreModeAdd)
-	if err != nil {
-		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
+// handleRestoreResult formats the result of an async restore.
+func (m *ShellModel) handleRestoreResult(msg restoreResultMsg) {
+	if msg.err != nil {
+		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", msg.err)))
 		m.output.WriteString("\n\n")
 		return
 	}
-
-	label := unitLabel(m.backend, result.WorkspacesOK)
-	m.output.WriteString(shellSuccessStyle.Render(fmt.Sprintf("  ✓ Restored %d/%d %s", result.WorkspacesOK, result.WorkspacesTotal, label)))
-	if len(result.Errors) > 0 {
-		m.output.WriteString(shellDimStyle.Render(fmt.Sprintf(" (%d error(s))", len(result.Errors))))
+	r := msg.result
+	label := unitLabel(m.backend, r.WorkspacesOK)
+	m.output.WriteString(shellSuccessStyle.Render(fmt.Sprintf("  ✓ Restored %d/%d %s", r.WorkspacesOK, r.WorkspacesTotal, label)))
+	if len(r.Errors) > 0 {
+		m.output.WriteString(shellDimStyle.Render(fmt.Sprintf(" (%d error(s))", len(r.Errors))))
+		for _, e := range r.Errors {
+			m.output.WriteString("\n")
+			m.output.WriteString(shellDimStyle.Render(fmt.Sprintf("    ⚠ %s", e)))
+		}
 	}
 	m.output.WriteString("\n\n")
 }

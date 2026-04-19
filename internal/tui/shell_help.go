@@ -28,7 +28,9 @@ var helpEntries = []helpEntry{
 	{"📐", "bp list", "", func(b client.DetectedBackend) string { return "List Blueprint entries" }, "Blueprint"},
 	{"📐", "bp remove", "<name|#>", func(b client.DetectedBackend) string { return "Remove Blueprint entry" }, "Blueprint"},
 	{"📐", "bp toggle", "<name|#>", func(b client.DetectedBackend) string { return "Enable/disable entry" }, "Blueprint"},
-	{"🎨", "banner", "[flame|classic|plain]", func(b client.DetectedBackend) string { return "Switch banner style" }, "Shell"},
+	{"🎨", "banner set", "<flame|classic|plain>", func(b client.DetectedBackend) string { return "Set banner style" }, "Shell"},
+	{"🎨", "banner get", "", func(b client.DetectedBackend) string { return "Show current style" }, "Shell"},
+	{"🎨", "banner list", "", func(b client.DetectedBackend) string { return "List available styles" }, "Shell"},
 	{"❓", "help", "", func(b client.DetectedBackend) string { return "Show this help" }, "Shell"},
 	{"👋", "exit", "", func(b client.DetectedBackend) string { return "Exit the shell" }, "Shell"},
 }

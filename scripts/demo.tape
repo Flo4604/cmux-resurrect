@@ -33,7 +33,7 @@ Show
 Type "# Show available commands"
 Enter
 Sleep 500ms
-Type "crex --help"
+Type "crex"
 Enter
 Sleep 3s
 

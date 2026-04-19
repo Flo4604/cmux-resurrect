@@ -20,6 +20,9 @@ const (
 
 const maxHistory = 50
 
+// BannerCycleFn cycles the banner style and returns (newStyle, error).
+type BannerCycleFn func(explicit string) (string, error)
+
 // ShellModel is the main Bubble Tea model for the crex interactive shell.
 type ShellModel struct {
 	mode      shellMode
@@ -36,6 +39,9 @@ type ShellModel struct {
 	quitting  bool
 	welcome   string // printed once via Init
 
+	// Banner style cycling (injected by cmd layer).
+	BannerCycle BannerCycleFn
+
 	// Confirmation state
 	confirmMsg string
 	confirmFn  func()
@@ -50,11 +56,13 @@ func NewShellModel(store persist.Store, cl client.Backend, backend client.Detect
 
 	// Build welcome message (printed via Init, not accumulated in View).
 	var w strings.Builder
+	w.WriteString("\n")
 	w.WriteString(shellDimStyle.Render("  crex interactive shell. Type "))
 	w.WriteString(shellSuccessStyle.Render("help"))
 	w.WriteString(shellDimStyle.Render(" for commands, "))
 	w.WriteString(shellSuccessStyle.Render("exit"))
 	w.WriteString(shellDimStyle.Render(" to quit."))
+	w.WriteString("\n")
 
 	return ShellModel{
 		mode:    modePrompt,
@@ -319,6 +327,26 @@ func (m ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 			break
 		}
 		m.execBpRemove(resolved)
+
+	case "banner":
+		explicit := ""
+		if len(args) > 0 {
+			explicit = args[0]
+		}
+		if m.BannerCycle == nil {
+			m.output.WriteString(shellErrorStyle.Render("  ✗ banner cycling not available"))
+			m.output.WriteString("\n\n")
+			break
+		}
+		newStyle, err := m.BannerCycle(explicit)
+		if err != nil {
+			m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
+			m.output.WriteString("\n\n")
+			break
+		}
+		m.output.WriteString(fmt.Sprintf("  %s Banner style set to %s\n\n",
+			shellSuccessStyle.Render("✓"),
+			shellSuccessStyle.Render(newStyle)))
 
 	case "bp toggle":
 		if len(args) == 0 {

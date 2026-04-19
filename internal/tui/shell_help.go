@@ -28,6 +28,7 @@ var helpEntries = []helpEntry{
 	{"📐", "bp list", "", func(b client.DetectedBackend) string { return "List Blueprint entries" }, "Blueprint"},
 	{"📐", "bp remove", "<name|#>", func(b client.DetectedBackend) string { return "Remove Blueprint entry" }, "Blueprint"},
 	{"📐", "bp toggle", "<name|#>", func(b client.DetectedBackend) string { return "Enable/disable entry" }, "Blueprint"},
+	{"🎨", "banner", "[flame|classic|plain]", func(b client.DetectedBackend) string { return "Switch banner style" }, "Shell"},
 	{"❓", "help", "", func(b client.DetectedBackend) string { return "Show this help" }, "Shell"},
 	{"👋", "exit", "", func(b client.DetectedBackend) string { return "Exit the shell" }, "Shell"},
 }
@@ -50,13 +51,14 @@ func unitLabel(b client.DetectedBackend, count int) string {
 // renderHelp builds the full help text with icons, grouped by section.
 func renderHelp(backend client.DetectedBackend) string {
 	var b strings.Builder
+	b.WriteString("\n")
 
 	groupOrder := []string{"Live", "Layouts", "Templates", "Blueprint", "Shell"}
 
 	for _, group := range groupOrder {
 		b.WriteString("  ")
 		b.WriteString(shellHeadingStyle.Render(group))
-		b.WriteString("\n")
+		b.WriteString("\n\n")
 
 		for _, e := range helpEntries {
 			if e.group != group {
@@ -68,7 +70,7 @@ func renderHelp(backend client.DetectedBackend) string {
 			}
 			desc := shellDimStyle.Render(e.desc(backend))
 			cmd := shellSuccessStyle.Render(e.cmd)
-			fmt.Fprintf(&b, "  %s  %-28s %s\n", e.icon, cmd+args, desc)
+			fmt.Fprintf(&b, "    %s  %-28s %s\n", e.icon, cmd+args, desc)
 		}
 		b.WriteString("\n")
 	}

@@ -22,26 +22,16 @@ var rootCmd = &cobra.Command{
 	Short: "Save, restore, and template your terminal workspaces",
 	Long:  "crex saves, restores, and templates your terminal workspaces.", // updated by updateRootLong()
 	RunE: func(cmd *cobra.Command, args []string) error {
-		store, err := newStore()
-		if err != nil {
+		if !configExists() {
 			fmt.Print(banner())
-			fmt.Print(styledHelp())
+			fmt.Println()
+			fmt.Println(dimStyle.Render("  First time? Run ") + greenStyle.Render("crex setup") + dimStyle.Render(" to get started."))
+			fmt.Println()
 			return nil
 		}
-		metas, err := store.List()
-		if err != nil || len(metas) == 0 {
-			if !configExists() {
-				fmt.Print(banner())
-				fmt.Println()
-				fmt.Println(dimStyle.Render("  First time? Run ") + greenStyle.Render("crex setup") + dimStyle.Render(" to get started."))
-				fmt.Println()
-				return nil
-			}
-			fmt.Print(banner())
-			fmt.Print(styledHelp())
-			return nil
-		}
-		return runTUI(cmd, args)
+		fmt.Print(banner())
+		fmt.Print(styledHelp())
+		return nil
 	},
 }
 

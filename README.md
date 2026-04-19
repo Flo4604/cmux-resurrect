@@ -61,6 +61,8 @@ crex save my-day -d "Friday deep work"    # with a description
 crex tui                                  # interactive shell
 ```
 
+<p align="center"><img src="assets/quickstart.gif" alt="crex quick start" width="800"></p>
+
 ---
 
 ## 💾 Save & Restore

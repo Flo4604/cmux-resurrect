@@ -20,8 +20,9 @@ const (
 
 const maxHistory = 50
 
-// BannerCycleFn cycles the banner style and returns (newStyle, error).
-type BannerCycleFn func(explicit string) (string, error)
+// BannerCycleFn cycles the banner style and returns (newStyle, preview, error).
+// preview is the rendered banner in the new style.
+type BannerCycleFn func(explicit string) (string, string, error)
 
 // ShellModel is the main Bubble Tea model for the crex interactive shell.
 type ShellModel struct {
@@ -40,7 +41,8 @@ type ShellModel struct {
 	welcome   string // printed once via Init
 
 	// Banner style cycling (injected by cmd layer).
-	BannerCycle BannerCycleFn
+	BannerCycle  BannerCycleFn
+	bannerStyle  string // current banner style for "banner get"
 
 	// Confirmation state
 	confirmMsg string
@@ -50,7 +52,7 @@ type ShellModel struct {
 // NewShellModel creates the interactive shell model.
 func NewShellModel(store persist.Store, cl client.Backend, backend client.DetectedBackend, wsFile string) ShellModel {
 	ti := textinput.New()
-	ti.Prompt = shellPromptStyle.Render("crex❯") + " "
+	ti.Prompt = shellFlameStyle.Render("crex") + " " + shellPromptStyle.Render("→") + " "
 	ti.Focus()
 	ti.CharLimit = 256
 
@@ -77,6 +79,9 @@ func NewShellModel(store persist.Store, cl client.Backend, backend client.Detect
 	}
 }
 
+// SetBannerStyle sets the current banner style name (for "banner get").
+func (m *ShellModel) SetBannerStyle(s string) { m.bannerStyle = s }
+
 // Init is the Bubble Tea init function.
 func (m ShellModel) Init() tea.Cmd {
 	return tea.Batch(textinput.Blink, tea.Println(m.welcome))
@@ -95,7 +100,11 @@ func (m ShellModel) flushOutput() tea.Cmd {
 
 // Update handles all incoming messages.
 func (m ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if msg, ok := msg.(tea.KeyMsg); ok {
+	switch msg := msg.(type) {
+	case restoreResultMsg:
+		m.handleRestoreResult(msg)
+		return m, m.flushOutput()
+	case tea.KeyMsg:
 		switch m.mode {
 		case modePrompt:
 			return m.updatePrompt(msg)
@@ -154,7 +163,7 @@ func (m ShellModel) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		// Reset buffer and echo the command
 		m.output.Reset()
-		m.output.WriteString(shellPromptStyle.Render("crex❯"))
+		m.output.WriteString(shellFlameStyle.Render("crex") + " " + shellPromptStyle.Render("→"))
 		m.output.WriteString(" ")
 		m.output.WriteString(input)
 		m.output.WriteString("\n")
@@ -215,7 +224,7 @@ func (m ShellModel) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m ShellModel) handleBrowseSelection(item Item) (tea.Model, tea.Cmd) {
 	switch m.browse.action {
 	case "restore":
-		m.execRestore(item.Name)
+		return m, m.execRestore(item.Name)
 	case "use":
 		m.execUse(item.Name)
 	case "toggle":
@@ -225,6 +234,11 @@ func (m ShellModel) handleBrowseSelection(item Item) (tea.Model, tea.Cmd) {
 }
 
 func (m ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
+	// Silently ignore comment lines (useful for demos).
+	if strings.HasPrefix(strings.TrimSpace(input), "#") {
+		return m, nil
+	}
+
 	cmd, args := parseCommand(input)
 
 	switch cmd {
@@ -263,7 +277,7 @@ func (m ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 			m.output.WriteString("\n\n")
 			break
 		}
-		m.execRestore(resolved)
+		return m, m.execRestore(resolved)
 
 	case "delete":
 		if len(args) == 0 {
@@ -328,25 +342,43 @@ func (m ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 		}
 		m.execBpRemove(resolved)
 
-	case "banner":
-		explicit := ""
-		if len(args) > 0 {
-			explicit = args[0]
-		}
-		if m.BannerCycle == nil {
-			m.output.WriteString(shellErrorStyle.Render("  ✗ banner cycling not available"))
+	case "banner set":
+		if len(args) == 0 {
+			m.output.WriteString(shellErrorStyle.Render("  ✗ Usage: banner set <flame|classic|plain>"))
 			m.output.WriteString("\n\n")
 			break
 		}
-		newStyle, err := m.BannerCycle(explicit)
+		if m.BannerCycle == nil {
+			m.output.WriteString(shellErrorStyle.Render("  ✗ banner not available"))
+			m.output.WriteString("\n\n")
+			break
+		}
+		newStyle, preview, err := m.BannerCycle(args[0])
 		if err != nil {
 			m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
 			m.output.WriteString("\n\n")
 			break
 		}
-		m.output.WriteString(fmt.Sprintf("  %s Banner style set to %s\n\n",
-			shellSuccessStyle.Render("✓"),
-			shellSuccessStyle.Render(newStyle)))
+		m.bannerStyle = newStyle
+		m.output.WriteString(preview)
+
+	case "banner get":
+		if m.BannerCycle == nil {
+			m.output.WriteString(shellErrorStyle.Render("  ✗ banner not available"))
+			m.output.WriteString("\n\n")
+			break
+		}
+		// BannerCycle with empty string cycles; we just need the current style.
+		// Read it from the config via a get callback — for now show the current.
+		m.output.WriteString(fmt.Sprintf("  Current banner style: %s\n\n",
+			shellSuccessStyle.Render(m.bannerStyle)))
+
+	case "banner list":
+		m.output.WriteString("  Available banner styles:\n")
+		m.output.WriteString(fmt.Sprintf("    %s  gradient (ember → gold → green)\n", shellSuccessStyle.Render("flame  ")))
+		m.output.WriteString(fmt.Sprintf("    %s  solid green\n", shellSuccessStyle.Render("classic")))
+		m.output.WriteString(fmt.Sprintf("    %s  monochrome gray\n", shellSuccessStyle.Render("plain  ")))
+		m.output.WriteString("\n")
 
 	case "bp toggle":
 		if len(args) == 0 {

@@ -31,7 +31,12 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	backend := cachedBackend
 
 	m := tui.NewShellModel(store, cl, backend, cfg.WorkspaceFile)
-	m.BannerCycle = func(explicit string) (string, error) {
+	style := cfg.BannerStyle
+	if style == "" {
+		style = "flame"
+	}
+	m.SetBannerStyle(style)
+	m.BannerCycle = func(explicit string) (string, string, error) {
 		next := explicit
 		if next == "" {
 			next = cycleBannerStyle(cfg.BannerStyle)
@@ -41,7 +46,10 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		if path == "" {
 			path = config.DefaultConfigPath()
 		}
-		return next, config.Save(path, cfg)
+		if err := config.Save(path, cfg); err != nil {
+			return next, "", err
+		}
+		return next, banner(), nil
 	}
 	p := tea.NewProgram(m) // no AltScreen — inline shell
 	_, err = p.Run()

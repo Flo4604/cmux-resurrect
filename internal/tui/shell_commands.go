@@ -19,8 +19,14 @@ func parseCommand(input string) (cmd string, args []string) {
 		return "", nil
 	}
 
-	// Handle "bp" subcommands: "bp add api ~/p" -> cmd="bp add", args=["api", "~/p"]
-	if parts[0] == "bp" && len(parts) >= 2 {
+	// Normalize "blueprint" → "bp"
+	if parts[0] == "blueprint" {
+		parts[0] = "bp"
+	}
+
+	// Handle two-word commands: "bp add", "banner set", etc.
+	twoWord := map[string]bool{"bp": true, "banner": true}
+	if twoWord[parts[0]] && len(parts) >= 2 {
 		cmd = parts[0] + " " + parts[1]
 		if len(parts) > 2 {
 			args = parts[2:]

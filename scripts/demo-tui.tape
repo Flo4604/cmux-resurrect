@@ -51,22 +51,24 @@ Sleep 3s
 Type "ls"
 Sleep 400ms
 Enter
-Sleep 2s
+Sleep 2500ms
+# Browse with arrows
 Down
-Sleep 400ms
+Sleep 600ms
 Down
-Sleep 400ms
+Sleep 600ms
 Down
-Sleep 1s
+Sleep 1200ms
+# Quit browse
 Type "q"
 Sleep 1s
 
-# ── Scene 4: Restore by number ────────────────────────────
+# ── Scene 4: Restore a saved layout ──────────────────────
 
-Type "restore 2"
+Type "restore my-day"
 Sleep 400ms
 Enter
-Sleep 3s
+Sleep 4s
 
 # ── Scene 5: Show live state ──────────────────────────────
 
@@ -94,7 +96,7 @@ Sleep 1s
 
 # ── Scene 7: Blueprint management ────────────────────────
 
-Type "bp list"
+Type "blueprint list"
 Sleep 400ms
 Enter
 Sleep 2s
@@ -108,22 +110,12 @@ Sleep 400ms
 Enter
 Sleep 2s
 
-# ── Scene 9: Switch banner style ────────────────────────
+# ── Scene 9: Banner preview ─────────────────────────────
 
-Type "banner classic"
+Type "banner set flame"
 Sleep 400ms
 Enter
-Sleep 2s
-
-Type "banner plain"
-Sleep 400ms
-Enter
-Sleep 2s
-
-Type "banner flame"
-Sleep 400ms
-Enter
-Sleep 2s
+Sleep 3s
 
 # ── Scene 10: Exit ───────────────────────────────────────
 

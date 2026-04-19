@@ -64,15 +64,9 @@ echo "📦 Setting up demo environment..."
 rm -rf "$DEMO_DIR"
 mkdir -p "$DEMO_DIR/layouts"
 
-# Copy existing layouts so `ls` has content to show
-if [[ -d "$HOME/.config/crex/layouts" ]]; then
-    cp "$HOME/.config/crex/layouts"/*.toml "$DEMO_DIR/layouts/" 2>/dev/null || true
-fi
-
-# Ensure we have at least one layout for the demo
-if [[ ! -f "$DEMO_DIR/layouts/my-day.toml" ]]; then
-    cp "$PROJECT_DIR/testdata/layouts/my-day.toml" "$DEMO_DIR/layouts/" 2>/dev/null || true
-fi
+# Copy only the small testdata layouts (not the user's real ones).
+# This keeps ls/restore consistent and fast.
+cp "$PROJECT_DIR/testdata/layouts/"*.toml "$DEMO_DIR/layouts/" 2>/dev/null || true
 
 # Create Blueprint so `bp list` has content
 cat > "$DEMO_DIR/workspaces.md" << 'MDEOF'

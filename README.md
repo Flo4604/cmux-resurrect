@@ -27,10 +27,10 @@ Inspired by [tmux-resurrect](https://github.com/tmux-plugins/tmux-resurrect), **
 
 ```sh
 brew install drolosoft/tap/crex            # preferred
-brew install drolosoft/tap/cmux-resurrect  # also works — same formula
+brew install drolosoft/tap/cmux-resurrect  # legacy alias — same formula
 ```
 
-Both `crex` and `cmux-resurrect` commands are ready to use, with shell completions installed automatically. No Go toolchain required. macOS only (both cmux and Ghostty's AppleScript API are macOS-native).
+Both `crex` and `cmux-resurrect` commands are ready to use (`cmux-resurrect` is the legacy name), with shell completions installed automatically. No Go toolchain required. macOS only (both cmux and Ghostty's AppleScript API are macOS-native).
 
 ### Install with `go install`
 

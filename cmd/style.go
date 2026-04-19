@@ -241,7 +241,7 @@ func styledHelp() string {
 	helpExample(&b, "crex blueprint add notes ~/docs", "add entry to Blueprint")
 	b.WriteString("\n")
 	b.WriteString(dimStyle.Render("  crex <command> --help for flags and details"))
-	b.WriteString("\n")
+	b.WriteString("\n\n")
 
 	return b.String()
 }

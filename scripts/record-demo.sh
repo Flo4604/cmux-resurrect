@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# 🎬 Record a demo GIF of cmux-resurrect in action
+# Record a demo GIF of crex in action
 #
 # This script records the demo GIF shown in the project README.
 # It creates an isolated environment so nothing from the user's real config
 # leaks into the recording. All workspaces created during recording are
 # automatically cleaned up afterward.
+#
+# Works with both cmux and Ghostty backends (auto-detected).
 #
 # WORKFLOW (always run all three steps together):
 #   1. make build && make install    # ensure crex binary is current
@@ -25,14 +27,14 @@
 #   4. Save          — crex save my-day (visible, then hidden swap to clean my-day.toml)
 #   5. List          — my-day layout has 3 workspaces (webapp + api + docs)
 #   6. Restore       — hidden close of import workspaces, then OK all 3 (fresh)
-#   7. Workspace     — add notes, list shows webapp + api + notes
+#   7. Blueprint     — bp add notes, bp list shows webapp + api + notes
 #
 # IMPORTANT: Between list and restore, a hidden step closes workspaces
 # created during import so restore shows all 3 being created fresh.
 #
 # Prerequisites:
 #   brew install vhs    # charmbracelet/vhs — terminal GIF recorder
-#   cmux must be running
+#   A supported terminal backend (cmux or Ghostty) must be running
 #
 # Usage:
 #   ./scripts/record-demo.sh
@@ -52,39 +54,54 @@ mkdir -p "$PROJECT_DIR/assets"
 
 # Check for vhs
 if ! command -v vhs &>/dev/null; then
-    echo "❌ vhs not found. Install it:"
+    echo "vhs not found. Install it:"
     echo "   brew install vhs"
     exit 1
 fi
 
 # Check for crex
 if ! command -v crex &>/dev/null; then
-    echo "❌ crex not found. Build it first:"
+    echo "crex not found. Build it first:"
     echo "   make build && make install"
     exit 1
 fi
 
-# Check cmux is running (needed for real commands)
-if ! cmux ping &>/dev/null; then
-    echo "❌ cmux not running. Start cmux first."
+# Detect backend
+BACKEND=""
+if command -v cmux &>/dev/null && cmux ping &>/dev/null 2>&1; then
+    BACKEND="cmux"
+elif osascript -e 'tell application "System Events" to (name of processes) contains "Ghostty"' 2>/dev/null | grep -q true; then
+    BACKEND="ghostty"
+fi
+
+if [ -z "$BACKEND" ]; then
+    echo "No supported backend detected."
+    echo "   Start cmux or Ghostty before recording."
     exit 1
 fi
 
+echo "Detected backend: $BACKEND"
+
 # Snapshot existing workspace refs for cleanup.
-echo "📸 Snapshotting current workspaces..."
-cmux list-workspaces 2>/dev/null | grep -o 'workspace:[0-9]*' | sort > /tmp/crex-demo-before.txt || true
+echo "Snapshotting current workspaces..."
+if [ "$BACKEND" = "cmux" ]; then
+    cmux list-workspaces 2>/dev/null | grep -o 'workspace:[0-9]*' | sort > /tmp/crex-demo-before.txt || true
+else
+    # For Ghostty, snapshot tab count
+    osascript -e 'tell application "Ghostty" to count of tabs of front window' > /tmp/crex-demo-before-count.txt 2>/dev/null || echo "0" > /tmp/crex-demo-before-count.txt
+fi
 
 # Set up isolated demo environment.
-echo "📦 Setting up demo environment..."
+echo "Setting up demo environment..."
 rm -rf "$DEMO_DIR"
 mkdir -p "$DEMO_DIR/layouts"
 
 # Copy the demo layout.
 cp "$PROJECT_DIR/testdata/layouts/my-day.toml" "$DEMO_DIR/layouts/" 2>/dev/null || \
     cp "$HOME/.config/crex/layouts/my-day.toml" "$DEMO_DIR/layouts/" 2>/dev/null || \
-    { echo "❌ my-day.toml not found"; exit 1; }
+    { echo "my-day.toml not found"; exit 1; }
 
-# Create a simple Workspace Blueprint for the demo.
+# Create a simple Blueprint for the demo.
 cat > "$DEMO_DIR/workspaces.md" << 'MDEOF'
 ## Projects
 **Icon | Name | Template | Pin | Path**
@@ -117,23 +134,54 @@ workspace_file = "$DEMO_DIR/workspaces.md"
 layouts_dir = "$DEMO_DIR/layouts"
 TOMLEOF
 
-echo "🎬 Recording demo (real cmux commands)..."
+# Create a helper script to close demo tabs (used by VHS tape Scene 6).
+# Closes tabs named "webapp" or "api" that were created by import.
+if [ "$BACKEND" = "cmux" ]; then
+    cat > "$DEMO_DIR/close-demo-tabs.sh" << 'CLOSEOF'
+#!/usr/bin/env bash
+cmux list-workspaces 2>/dev/null | grep -E 'webapp|api' | grep -o 'workspace:[0-9]*' | while read ref; do
+    cmux close-workspace --workspace "$ref" 2>/dev/null
+    sleep 0.3
+done
+CLOSEOF
+else
+    cat > "$DEMO_DIR/close-demo-tabs.sh" << 'CLOSEOF'
+#!/usr/bin/env bash
+# Close Ghostty tabs named "webapp" or "api" (created by import).
+# Iterate in reverse to avoid index shifts.
+tab_count=$(osascript -e 'tell application "Ghostty" to count of tabs of front window' 2>/dev/null)
+for (( i=tab_count; i>=1; i-- )); do
+    tab_name=$(osascript -e "tell application \"Ghostty\" to name of tab $i of front window" 2>/dev/null)
+    if echo "$tab_name" | grep -qE 'webapp|api'; then
+        osascript -e "tell application \"Ghostty\" to close tab (a reference to tab $i of front window)" 2>/dev/null
+        sleep 0.3
+    fi
+done
+CLOSEOF
+fi
+chmod +x "$DEMO_DIR/close-demo-tabs.sh"
+
+echo "Recording demo ($BACKEND backend)..."
 vhs "$TAPE_FILE" -o "$OUTPUT"
 
 # Cleanup: close workspaces created during recording.
-echo "🧹 Cleaning up created workspaces..."
-cmux list-workspaces 2>/dev/null | grep -o 'workspace:[0-9]*' | sort > /tmp/crex-demo-after.txt || true
+echo "Cleaning up created workspaces..."
+if [ "$BACKEND" = "cmux" ]; then
+    cmux list-workspaces 2>/dev/null | grep -o 'workspace:[0-9]*' | sort > /tmp/crex-demo-after.txt || true
+    NEW_REFS=$(comm -13 /tmp/crex-demo-before.txt /tmp/crex-demo-after.txt)
+    for ref in $NEW_REFS; do
+        echo "  Closing $ref"
+        cmux close-workspace --workspace "$ref" 2>/dev/null || true
+        sleep 0.2
+    done
+    rm -f /tmp/crex-demo-before.txt /tmp/crex-demo-after.txt
+else
+    # For Ghostty, close any remaining demo tabs
+    "$DEMO_DIR/close-demo-tabs.sh" 2>/dev/null || true
+    rm -f /tmp/crex-demo-before-count.txt
+fi
 
-# Find refs that are in "after" but not in "before" — those were created during recording.
-NEW_REFS=$(comm -13 /tmp/crex-demo-before.txt /tmp/crex-demo-after.txt)
-for ref in $NEW_REFS; do
-    echo "  Closing $ref"
-    cmux close-workspace --workspace "$ref" 2>/dev/null || true
-    sleep 0.2
-done
-
-rm -f /tmp/crex-demo-before.txt /tmp/crex-demo-after.txt
 rm -rf "$DEMO_DIR"
 
-echo "✅ Demo saved to $OUTPUT"
-echo "📏 Size: $(du -h "$OUTPUT" | cut -f1)"
+echo "Demo saved to $OUTPUT"
+echo "Size: $(du -h "$OUTPUT" | cut -f1)"

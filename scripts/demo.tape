@@ -1,6 +1,6 @@
-# cmux-resurrect demo — recorded with github.com/charmbracelet/vhs
+# crex demo — recorded with github.com/charmbracelet/vhs
 #
-# Run via: ./scripts/record-demo.sh (needs cmux running)
+# Run via: ./scripts/record-demo.sh (needs a supported terminal backend)
 
 Output assets/demo.gif
 Set FontSize 14
@@ -12,8 +12,11 @@ Set TypingSpeed 20ms
 Set CursorBlink false
 Set Shell "bash"
 
-# Hidden setup: alias crex + enable bash comments
+# Hidden setup: alias crex to use demo config; enable bash comments
 Hide
+Type "shopt -s interactive_comments"
+Enter
+Sleep 200ms
 Type "alias crex='crex --config /tmp/crex-demo/config.toml'"
 Enter
 Sleep 500ms
@@ -27,11 +30,11 @@ Show
 Type "# Show available commands"
 Enter
 Sleep 500ms
-Type "crex"
+Type "crex --help"
 Enter
-Sleep 4s
+Sleep 3s
 
-# ── Scene 2: Show the Workspace Blueprint ──────────────────
+# ── Scene 2: Show the Blueprint ───────────────────────────
 
 Hide
 Type "clear"
@@ -39,12 +42,12 @@ Enter
 Sleep 1s
 Show
 
-Type "# View the Workspace Blueprint"
+Type "# View the Blueprint"
 Enter
 Sleep 500ms
 Type "bat --style=plain /tmp/crex-demo/workspaces.md"
 Enter
-Sleep 4s
+Sleep 3s
 
 # ── Scene 3: Import from Blueprint (real) ──────────────────
 
@@ -57,27 +60,33 @@ Show
 Type "# Create workspaces from the Blueprint"
 Enter
 Sleep 500ms
-Type "crex import-from-md --workspace-file /tmp/crex-demo/workspaces.md"
+Type "crex import-from-md"
 Enter
-Sleep 10s
+Sleep 3s
 
-# ── Scene 4: Save current layout ─────────────────────────
+# ── Scene 4: Save + List ─────────────────────────────────
 
+# Hidden: save once and swap in clean toml (avoids leaking real tabs)
 Hide
+Type "crex save my-day 2>/dev/null"
+Enter
+Sleep 2s
+Type "cp /tmp/crex-demo/my-day-clean.toml /tmp/crex-demo/layouts/my-day.toml"
+Enter
+Sleep 500ms
 Type "clear"
 Enter
 Sleep 1s
 Show
 
-Type "# Save current workspaces as a layout"
+Type "# Save and list layouts"
 Enter
 Sleep 500ms
-Type "crex save my-day"
+Type "crex save my-day -d 'Friday deep work'"
 Enter
-Sleep 3s
+Sleep 2s
 
-# Hidden: replace saved file with clean my-day.toml (save captures ALL cmux
-# workspaces including the user's real ones — we swap in the curated version).
+# Hidden: swap clean toml again and clear
 Hide
 Type "cp /tmp/crex-demo/my-day-clean.toml /tmp/crex-demo/layouts/my-day.toml"
 Enter
@@ -87,20 +96,15 @@ Enter
 Sleep 1s
 Show
 
-# ── Scene 5: List saved layouts ───────────────────────────
-
-Type "# List saved layouts"
-Enter
-Sleep 500ms
 Type "crex list"
 Enter
-Sleep 4s
+Sleep 3s
 
-# ── Scene 6: Restore layout (real) ────────────────────────
+# ── Scene 5: Restore layout (real) ────────────────────────
 
-# Hidden: close workspaces created by import so restore creates them fresh (no SKIPs).
+# Hidden: close workspaces created by import so restore creates them fresh.
 Hide
-Type "cmux list-workspaces 2>/dev/null | grep -E 'webapp|api' | grep -o 'workspace:[0-9]*' | while read ref; do cmux close-workspace --workspace $ref; sleep 0.3; done"
+Type "/tmp/crex-demo/close-demo-tabs.sh"
 Enter
 Sleep 2s
 Type "clear"
@@ -113,12 +117,9 @@ Enter
 Sleep 500ms
 Type "crex restore my-day --mode add"
 Enter
-Sleep 10s
-Type "# Workspaces are now live in cmux"
-Enter
-Sleep 4s
+Sleep 3s
 
-# ── Scene 7: Add workspace to Blueprint ───────────────────
+# ── Scene 6: Add entry to Blueprint ──────────────────────
 
 Hide
 Type "clear"
@@ -126,15 +127,15 @@ Enter
 Sleep 1s
 Show
 
-Type "# Add a workspace and list all"
+Type "# Manage the Blueprint"
 Enter
 Sleep 500ms
-Type 'crex workspace add notes ~/docs -t single --icon "📓"'
+Type "crex blueprint add notes ~/docs -t single"
 Enter
 Sleep 2s
-Type "crex workspace list"
+Type "crex blueprint list"
 Enter
-Sleep 4s
+Sleep 3s
 
 # ── End ───────────────────────────────────────────────────
 

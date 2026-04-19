@@ -89,5 +89,6 @@ func runBlueprintList(cmd *cobra.Command, args []string) error {
 	} else {
 		fmt.Fprintln(os.Stderr, dimStyle.Render(fmt.Sprintf("  %d entries", shown)))
 	}
+	fmt.Fprintln(os.Stderr)
 	return nil
 }

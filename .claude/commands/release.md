@@ -1,9 +1,24 @@
 ---
 description: Run the full crex release workflow — pre-flight, changelog, tag, CI release, post-release verification, and downstream updates.
-argument-hint: "version (e.g. 1.7.0)"
+argument-hint: "version (e.g. 1.7.0) — optional, auto-detected if omitted"
 ---
 
-Run the full crex release workflow for version **v$ARGUMENTS**. Execute every phase in order — do not skip steps or proceed past a failing gate.
+## Version resolution
+
+If `$ARGUMENTS` contains a version number, use it as the release version.
+
+If `$ARGUMENTS` is empty or contains no version, detect the next version automatically:
+
+1. Get the last tag: `git describe --tags --abbrev=0`
+2. Get the commit log since that tag: `git log <last-tag>..HEAD --oneline`
+3. Apply semver rules to determine the bump:
+   - **Patch** (X.Y.Z+1): only fixes, docs, refactoring, test changes
+   - **Minor** (X.Y+1.0): new features, new commands, new flags, new config options, behavioral improvements
+   - **Major** (X+1.0.0): breaking changes (removed commands, renamed flags without alias, changed config format without backwards compat)
+4. Present the proposed version to the user: "Based on the changes since vX.Y.Z, this looks like a **minor** release. Proposed version: **vA.B.C**. Proceed?"
+5. Wait for confirmation before continuing.
+
+Store the resolved version as VERSION for all subsequent phases. Execute every phase in order — do not skip steps or proceed past a failing gate.
 
 ## Phase 1: Pre-flight checks
 
@@ -54,23 +69,23 @@ Report the analysis to the user. If any breaking changes exist, ask for explicit
 
 Update `CHANGELOG.md`:
 
-1. Add a new `## [v$ARGUMENTS] — YYYY-MM-DD` section after the `---` below the header
+1. Add a new `## [vVERSION] — YYYY-MM-DD` section after the `---` below the header
 2. Categorize changes into Added, Changed, Fixed, Removed sections
 3. Write entries in past tense, starting with bold component name
-4. Add the version link at the bottom of the file: `[v$ARGUMENTS]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v$ARGUMENTS`
-5. Commit: `git commit -am "docs: changelog for v$ARGUMENTS"`
+4. Add the version link at the bottom of the file: `[vVERSION]: https://github.com/drolosoft/cmux-resurrect/releases/tag/vVERSION`
+5. Commit: `git commit -am "docs: changelog for vVERSION"`
 
 ## Phase 4: Tag and push
 
 ```bash
-git tag -a v$ARGUMENTS -m "Release v$ARGUMENTS"
+git tag -a vVERSION -m "Release vVERSION"
 ```
 
 Ask the user for confirmation before pushing the tag. Then:
 
 ```bash
 git push origin main
-git push origin v$ARGUMENTS
+git push origin vVERSION
 ```
 
 This triggers GitHub Actions (`.github/workflows/release.yml`):
@@ -101,7 +116,7 @@ gh run view <run-id> --log-failed
 brew update
 brew upgrade drolosoft/tap/crex 2>/dev/null || brew install drolosoft/tap/crex
 crex version
-# Must show v$ARGUMENTS
+# Must show vVERSION
 ```
 
 ### 6b. CLI validation

@@ -1,10 +1,10 @@
-# crex v1.6.0 interactive shell demo — recorded with github.com/charmbracelet/vhs
+# crex interactive shell demo — recorded with github.com/charmbracelet/vhs
 #
 # Run via: ./scripts/record-demo-tui.sh (needs Ghostty or cmux running)
 #
 # NOTE: CREX_BRAND=crex forces crex branding while cmux handles live ops.
 #
-# DEMO NARRATIVE (centered on save / restore / templates + v1.6.0 features):
+# DEMO NARRATIVE (centered on save / restore / templates + shell features):
 #   1. Launch          — crex tui, banner + prompt
 #   2. Tab completion  — Tab shows all commands with icons (hero feature)
 #   3. Save            — save via tab-completed layout name

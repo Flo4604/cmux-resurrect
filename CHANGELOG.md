@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.6.1] — 2026-04-20
+
+### Fixed
+- **Pointer receiver consistency** — converted all `ShellModel` methods from value to pointer receivers, eliminating a latent split-brain bug where shared `*strings.Builder` state could diverge across Bubble Tea copies
+- **Help text alignment** — ANSI escape codes no longer break column padding; padding is now computed from unstyled text width
+- **Editor launch with spaces** — `$EDITOR` values containing arguments (e.g. `code --wait`) are now split correctly; `$VISUAL` is checked before falling back to `vi`
+- **staticcheck QF1012** — replaced `WriteString(Sprintf(...))` with `fmt.Fprintf` in banner settings output
+
+### Changed
+- **Completion caching** — `store.List()` filesystem I/O is now cached with a 2-second TTL, keeping per-keystroke completions off disk; explicit `Invalidate()` after all mutation operations (save, delete, bp add/remove/toggle, import, export, template customize)
+- **Completion sort order** — commands sorted alphabetically within category groups (Live, Layouts, Templates, Blueprint, Settings, Shell); `exit`/`quit` anchored at the end
+- **Dead code removed** — `batchNonNil`, `layoutNames`, `templateNames`, `blueprintNames` helpers deleted
+
+### Added
+- Tests for `parseCommand` with `settings banner` subcommands, `padIcon` emoji width, and `resolveNameOrNumber` lookup
+
+---
+
 ## [v1.6.0] — 2026-04-20
 
 ### Added
@@ -206,6 +224,7 @@ Initial public release.
 
 ---
 
+[v1.6.1]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.6.1
 [v1.6.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.6.0
 [v1.5.1]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.5.1
 [v1.5.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.5.0

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 🎬 Record a TUI interactive shell demo GIF
 #
-# Records the demo GIF for the v1.6.0 interactive shell.
+# Records the demo GIF for the interactive shell.
 # Uses an isolated demo environment — nothing from real config leaks in.
 #
 # WORKFLOW:
@@ -13,7 +13,7 @@
 #   scripts/record-demo-tui.sh      — this file (setup, record, cleanup)
 #   assets/demo-tui.gif             — output GIF
 #
-# DEMO NARRATIVE (centered on save / restore / templates + v1.6.0 features):
+# DEMO NARRATIVE (centered on save / restore / templates + shell features):
 #   1. Launch          — crex tui, banner + prompt
 #   2. Tab completion  — Tab shows all commands with icons (hero feature)
 #   3. Save            — save via tab-completed layout name

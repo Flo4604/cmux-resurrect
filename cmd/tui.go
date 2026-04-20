@@ -51,7 +51,14 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		}
 		return next, banner(), nil
 	}
-	p := tea.NewProgram(m) // no AltScreen — inline shell
-	_, err = p.Run()
-	return err
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	finalModel, err := p.Run()
+	if err != nil {
+		return err
+	}
+	if sm, ok := finalModel.(tui.ShellModel); ok && sm.ByeMsg() != "" {
+		fmt.Println("\n  " + sm.ByeMsg())
+		fmt.Println()
+	}
+	return nil
 }

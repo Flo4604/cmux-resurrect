@@ -389,14 +389,14 @@ func (m *ShellModel) execBpRemove(name string) {
 		return
 	}
 
-	if err := mdfile.RemoveProject(m.wsFile, name); err != nil {
-		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
-		m.output.WriteString("\n\n")
-		return
+	m.confirmMsg = shellErrorStyle.Render(fmt.Sprintf("  Remove %q from Blueprint? [y/N]", name))
+	m.confirmFn = func() {
+		if err := mdfile.RemoveProject(m.wsFile, name); err != nil {
+			m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
+			m.output.WriteString("\n")
+		}
 	}
-
-	m.output.WriteString(shellSuccessStyle.Render(fmt.Sprintf("  ✓ Removed %q from Blueprint", name)))
-	m.output.WriteString("\n\n")
+	m.mode = modeConfirm
 }
 
 // execBpToggle toggles the enabled state of a Blueprint project by name.

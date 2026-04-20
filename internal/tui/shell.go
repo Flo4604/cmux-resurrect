@@ -37,8 +37,9 @@ type ShellModel struct {
 	store     persist.Store
 	client    client.Backend
 	wsFile    string
-	quitting  bool
-	welcome   string // printed once via Init
+	quitting    bool
+	welcome     string // shown in View until first command
+	welcomeSent bool   // true after welcome has been printed via tea.Println
 
 	// Banner style cycling (injected by cmd layer).
 	BannerCycle  BannerCycleFn
@@ -52,7 +53,7 @@ type ShellModel struct {
 // NewShellModel creates the interactive shell model.
 func NewShellModel(store persist.Store, cl client.Backend, backend client.DetectedBackend, wsFile string) ShellModel {
 	ti := textinput.New()
-	ti.Prompt = shellFlameStyle.Render("crex") + " " + shellPromptStyle.Render("→") + " "
+	ti.Prompt = "  " + shellFlameStyle.Render("crex") + " " + shellPromptStyle.Render("→") + " "
 	ti.Focus()
 	ti.CharLimit = 256
 
@@ -64,7 +65,7 @@ func NewShellModel(store persist.Store, cl client.Backend, backend client.Detect
 	w.WriteString(shellDimStyle.Render(" for commands, "))
 	w.WriteString(shellSuccessStyle.Render("exit"))
 	w.WriteString(shellDimStyle.Render(" to quit."))
-	w.WriteString("\n")
+	w.WriteString("\n\n")
 
 	return ShellModel{
 		mode:    modePrompt,
@@ -84,7 +85,7 @@ func (m *ShellModel) SetBannerStyle(s string) { m.bannerStyle = s }
 
 // Init is the Bubble Tea init function.
 func (m ShellModel) Init() tea.Cmd {
-	return tea.Batch(textinput.Blink, tea.Println(m.welcome))
+	return textinput.Blink
 }
 
 // flushOutput drains the per-command buffer and returns a tea.Println Cmd.
@@ -161,9 +162,16 @@ func (m ShellModel) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.history = m.history[len(m.history)-maxHistory:]
 		}
 
+		// On first command, print the welcome line into scroll history.
+		var welcomeCmd tea.Cmd
+		if !m.welcomeSent {
+			m.welcomeSent = true
+			welcomeCmd = tea.Println(m.welcome)
+		}
+
 		// Reset buffer and echo the command
 		m.output.Reset()
-		m.output.WriteString(shellFlameStyle.Render("crex") + " " + shellPromptStyle.Render("→"))
+		m.output.WriteString("  " + shellFlameStyle.Render("crex") + " " + shellPromptStyle.Render("→"))
 		m.output.WriteString(" ")
 		m.output.WriteString(input)
 		m.output.WriteString("\n")
@@ -175,7 +183,7 @@ func (m ShellModel) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		sm := model.(ShellModel)
 		printCmd := sm.flushOutput()
 
-		return sm, batchNonNil(printCmd, dispatchCmd)
+		return sm, batchNonNil(welcomeCmd, printCmd, dispatchCmd)
 	}
 
 	// Pass to text input for line editing
@@ -417,6 +425,9 @@ func (m ShellModel) View() string {
 	case modeConfirm:
 		return m.confirmMsg + "\n"
 	default:
+		if !m.welcomeSent {
+			return m.welcome + m.prompt.View()
+		}
 		return m.prompt.View()
 	}
 }

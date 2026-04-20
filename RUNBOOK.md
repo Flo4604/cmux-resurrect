@@ -366,6 +366,37 @@ crex import-from-md
 
 ---
 
+## Test 14: TUI E2E Visual Tests (post-release)
+
+Run the full 27-case TUI visual regression suite after every release to catch rendering bugs that unit tests miss.
+
+**In Claude Code:**
+```
+/e2e-tui
+```
+
+This builds crex, starts ttyd, drives 27 test cases via Playwright, inspects every screenshot, and fixes issues found. See `docs/tui-testing.md` for the full test matrix.
+
+**Manual runner (if needed):**
+```sh
+mkdir -p /tmp/crex-e2e
+go build -o /tmp/crex-e2e/crex-test ./cmd/crex
+ttyd -W -p 7682 /tmp/crex-e2e/crex-test tui &
+sleep 2
+node scripts/e2e-tui-runner.js
+# Screenshots in /tmp/crex-e2e/screenshots/, report in /tmp/crex-e2e/report.json
+pkill -f 'ttyd.*7682'
+```
+
+**Check:**
+- [ ] All 27 screenshots show correct TUI output
+- [ ] No rendering corruption, garbled text, or missing content
+- [ ] Column alignment correct in help, templates, tab completion
+- [ ] Prompt recovery after every command (except exit)
+- [ ] Error messages in red, commands in green
+
+---
+
 ## Cleanup
 
 ```sh

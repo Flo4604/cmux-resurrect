@@ -4,18 +4,22 @@
 
 Internal guide for systematically testing the interactive shell (`crex tui`) using ttyd and Playwright MCP. This is the only reliable way to test the TUI end-to-end — unit tests verify logic, but rendering bugs (like the tea.Println fix in v1.5.0) only surface in a real terminal.
 
+## Automated Testing (Recommended)
+
+Run `/e2e-tui` in Claude Code to execute the full 27-case test matrix automatically. This builds crex, starts ttyd, drives all test cases via `scripts/e2e-tui-runner.js`, inspects every screenshot visually, and fixes issues found.
+
+```sh
+# Or run the runner script directly (requires ttyd running on port 7682):
+node scripts/e2e-tui-runner.js [--port 7682] [--cases 1,2,5]
+```
+
+The runner outputs screenshots to `/tmp/crex-e2e/screenshots/` and a structured report to `/tmp/crex-e2e/report.json`. The `/e2e-tui` slash command handles the full lifecycle (build, ttyd start/stop, visual inspection, fix cycle).
+
 ## Why This Exists
 
 Bubble Tea's inline renderer can silently corrupt output when `View()` grows between renders. Unit tests pass while the shell is visually broken. ttyd gives us a real terminal we can drive programmatically.
 
-## Prerequisites
-
-```sh
-brew install ttyd          # terminal sharing over HTTP
-# Playwright MCP server must be configured
-```
-
-## Setup
+## Manual Setup (for ad-hoc testing)
 
 ### 1. Build the binary
 
@@ -26,18 +30,18 @@ go build -o /tmp/crex-test ./cmd/crex
 ### 2. Start ttyd
 
 ```sh
-ttyd -W -p 7681 /tmp/crex-test tui
+ttyd -W -p 7682 /tmp/crex-test tui
 ```
 
 - `-W` enables write access (required for sending input)
-- `-p 7681` sets the port
+- `-p 7682` sets the port
 - The shell launches automatically inside ttyd
 
 ### 3. Navigate Playwright to ttyd
 
 ```js
 // Via mcp__playwright__browser_navigate
-"http://localhost:7681"
+"http://localhost:7682"
 ```
 
 ### 4. Wait for terminal ready
@@ -107,59 +111,72 @@ new Promise(r => setTimeout(r, 3000)).then(() => 'waited')
 // Then screenshot
 ```
 
-## Full Test Matrix
+## Full Test Matrix (27 cases)
 
 Run these in order. Each test verifies rendering, error handling, and prompt recovery.
+The automated runner (`scripts/e2e-tui-runner.js`) executes cases 1-27 sequentially.
 
-### Core Shell
+### Core Shell (1-6)
 
 | # | Command | Expected | Validates |
 |---|---------|----------|-----------|
-| 1 | *(launch)* | Welcome message + `crex>` prompt | Init, tea.Println welcome |
-| 2 | `help` | 5 groups with icons, colors | Multi-line output flush |
-| 3 | `ls` | Numbered items in browse mode | Browse mode entry |
+| 1 | *(launch)* | Welcome message + `crex ->` prompt, help/exit highlighted | Init, welcome rendering |
+| 2 | `help` | 6 groups with icons, colored headers, aligned columns | Multi-line output, ANSI alignment |
+| 3 | `ls` | Numbered items in browse mode with cursor | Browse mode entry |
 | 4 | `q` in browse | Return to prompt | Browse mode exit |
 | 5 | `templates` | 16 templates in browse mode | Template listing |
 | 6 | `q` in browse | Return to prompt | Browse exit consistency |
 
-### Backend-Dependent (expect errors in ttyd)
+### Backend-Dependent (7-8, expect errors in ttyd)
 
 | # | Command | Expected in ttyd | Validates |
 |---|---------|-----------------|-----------|
-| 7 | `now` | `✗ tree: osascript: ...` | Error display + recovery |
-| 8 | `save test` | `✗ get tree: ...` | Save error path |
-| 9 | `restore <name>` | Restoring... then error or success | Restore flow |
+| 7 | `now` | Error message (no backend in ttyd), prompt recovery | Error display + recovery |
+| 8 | `save test` | Error message, prompt recovery | Save error path |
 
-### Usage Errors (no args)
-
-| # | Command | Expected | Validates |
-|---|---------|----------|-----------|
-| 10 | `restore` | `✗ Usage: restore <name\|#>` | Arg validation |
-| 11 | `delete` | `✗ Usage: delete <name\|#>` | Arg validation |
-| 12 | `use` | `✗ Usage: use <template\|#>` | Arg validation |
-| 13 | `bp add` | `✗ Usage: bp add <name> <path>` | Arg validation |
-| 14 | `bp remove` | `✗ Usage: bp remove <name\|#>` | Arg validation |
-| 15 | `bp toggle` | `✗ Usage: bp toggle <name\|#>` | Arg validation |
-
-### Features
+### Usage Errors (9-14)
 
 | # | Command | Expected | Validates |
 |---|---------|----------|-----------|
-| 16 | `watch status` | `watch daemon is not running` | Watch status |
-| 17 | `bp list` | Entries in browse mode | Blueprint listing |
+| 9 | `restore` | `✗ Usage: restore <name\|#>` | Arg validation |
+| 10 | `delete` (split: `delet` + `e\r`) | `✗ Usage: delete <name\|#>` | Arg validation (ttyd quirk) |
+| 11 | `use` | `✗ Usage: use <template\|#>` | Arg validation |
+| 12 | `bp add` | `✗ Usage: bp add <name> <path>` | Arg validation |
+| 13 | `bp remove` | `✗ Usage: bp remove <name\|#>` | Arg validation |
+| 14 | `bp toggle` | `✗ Usage: bp toggle <name\|#>` | Arg validation |
+
+### Features (15-18)
+
+| # | Command | Expected | Validates |
+|---|---------|----------|-----------|
+| 15 | `watch status` | `watch daemon is not running` | Watch status |
+| 16 | `bp list` | Entries in browse mode or empty message | Blueprint listing |
+| 17 | `q` in browse | Return to prompt | Browse exit after bp list |
 | 18 | `foobar` | `✗ Unknown command: foobar` | Unknown command handling |
-| 19 | `ls` then `restore 2` | Resolves name from listing | Number references |
-| 20 | `exit` | Shell terminates, back to zsh | Clean exit |
 
-### Edge Cases
+### Tab Completion (19-22)
 
 | # | Action | Expected | Validates |
 |---|--------|----------|-----------|
-| 21 | Empty Enter | No output, stay in prompt | Empty input handling |
-| 22 | Ctrl+C | Shell terminates | Interrupt handling |
-| 23 | Arrow Up after commands | Recalls previous command | History navigation |
-| 24 | Arrow Down | Navigates forward in history | History navigation |
-| 25 | `save` (no name) | Saves as "default" | Default name |
+| 19 | Tab on empty prompt | All commands with icons and descriptions | Level 1 completion |
+| 20 | Escape | Completion dismissed, back to prompt | Completion dismiss |
+| 21 | `bp` + Tab | bp subcommands: add, list, ls, remove, rm, toggle | Level 2 completion |
+| 22 | `settings banner` + Tab | banner subcommands: get, list, set | Level 3 completion |
+
+### Settings Output (23-24)
+
+| # | Command | Expected | Validates |
+|---|---------|----------|-----------|
+| 23 | `settings banner get` | `Current banner style: flame` (green text) | Settings get rendering |
+| 24 | `settings banner list` | 3 styles with aligned descriptions | Settings list rendering |
+
+### Edge Cases (25-27)
+
+| # | Action | Expected | Validates |
+|---|--------|----------|-----------|
+| 25 | Arrow Up x2 | Recalls previous commands in prompt | History navigation |
+| 26 | Empty Enter | No output, stays in prompt | Empty input handling |
+| 27 | `exit` | Phoenix bye message, ttyd shows reconnect | Clean exit |
 
 ## Adding Tests for New Features
 

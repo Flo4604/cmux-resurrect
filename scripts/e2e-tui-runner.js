@@ -49,22 +49,23 @@ const TESTS = [
   { id: 12, name: 'usage-bp-add',        input: 'bp add\r',                  wait: 1000, expected: 'Red error: Usage: bp add <name> <path>' },
   { id: 13, name: 'usage-bp-remove',     input: 'bp remove\r',               wait: 1000, expected: 'Red error: Usage: bp remove <name|#>' },
   { id: 14, name: 'usage-bp-toggle',     input: 'bp toggle\r',               wait: 1000, expected: 'Red error: Usage: bp toggle <name|#>' },
-  // Features (15-17)
+  // Features (15-18)
   { id: 15, name: 'watch-status',        input: 'watch status\r',            wait: 1000, expected: 'watch daemon is not running' },
   { id: 16, name: 'bp-list',             input: 'bp list\r',                 wait: 1000, expected: 'Blueprint entries in browse mode or empty message' },
-  { id: 17, name: 'unknown-cmd',         input: 'foobar\r',                  wait: 1000, expected: 'Red error: Unknown command: foobar' },
-  // Tab Completion (18-21)
-  { id: 18, name: 'tab-level1',          input: '\t',                        wait: 1000, expected: 'All commands with icons and descriptions' },
-  { id: 19, name: 'tab-escape',          input: '\x1b',                      wait: 500,  expected: 'Completion dismissed, back to prompt' },
-  { id: 20, name: 'tab-bp-level2',       input: { pre: 'bp', tab: true },    wait: 1000, expected: 'bp subcommands: add, list, ls, remove, rm, toggle' },
-  { id: 21, name: 'tab-settings-level3', input: { pre: 'settings banner', tab: true }, wait: 1000, expected: 'banner subcommands: get, list, set' },
-  // Settings Output (22-23)
-  { id: 22, name: 'settings-banner-get', input: 'settings banner get\r',     wait: 1000, expected: 'Current banner style: flame (green text)' },
-  { id: 23, name: 'settings-banner-list',input: 'settings banner list\r',    wait: 1000, expected: '3 styles with aligned descriptions' },
-  // Edge Cases (24-26)
-  { id: 24, name: 'history-up',          input: ['\x1b[A', '\x1b[A'],        wait: 500,  expected: 'Recalls previous commands in prompt' },
-  { id: 25, name: 'empty-enter',         input: '\r',                        wait: 500,  expected: 'No output, stays in prompt' },
-  { id: 26, name: 'exit',                input: 'exit\r',                    wait: 2000, expected: 'Phoenix bye message, ttyd shows reconnect' },
+  { id: 17, name: 'bp-list-quit',        input: 'q',                         wait: 500,  expected: 'Return to prompt' },
+  { id: 18, name: 'unknown-cmd',         input: 'foobar\r',                  wait: 1000, expected: 'Red error: Unknown command: foobar' },
+  // Tab Completion (19-22)
+  { id: 19, name: 'tab-level1',          input: '\t',                        wait: 1000, expected: 'All commands with icons and descriptions' },
+  { id: 20, name: 'tab-escape',          input: '\x1b',                      wait: 500,  expected: 'Completion dismissed, back to prompt' },
+  { id: 21, name: 'tab-bp-level2',       input: { pre: 'bp', tab: true },    wait: 1000, expected: 'bp subcommands: add, list, ls, remove, rm, toggle' },
+  { id: 22, name: 'tab-settings-level3', input: { pre: 'settings banner', tab: true }, wait: 1000, expected: 'banner subcommands: get, list, set' },
+  // Settings Output (23-24)
+  { id: 23, name: 'settings-banner-get', input: 'settings banner get\r',     wait: 1000, expected: 'Current banner style: flame (green text)' },
+  { id: 24, name: 'settings-banner-list',input: 'settings banner list\r',    wait: 1000, expected: '3 styles with aligned descriptions' },
+  // Edge Cases (25-27)
+  { id: 25, name: 'history-up',          input: ['\x1b[A', '\x1b[A'],        wait: 500,  expected: 'Recalls previous commands in prompt' },
+  { id: 26, name: 'empty-enter',         input: '\r',                        wait: 500,  expected: 'No output, stays in prompt' },
+  { id: 27, name: 'exit',                input: 'exit\r',                    wait: 2000, expected: 'Phoenix bye message, ttyd shows reconnect' },
 ];
 
 // --- Helpers ---

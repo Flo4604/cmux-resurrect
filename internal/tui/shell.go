@@ -598,4 +598,3 @@ func (m *ShellModel) View() string {
 		return prompt + header + "\n" + m.lastOutput
 	}
 }
-

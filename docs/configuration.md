@@ -48,6 +48,8 @@ Set it in `config.toml`:
 banner_style = "plain"
 ```
 
+Or change it interactively inside the TUI with `settings banner set <style>` — the change is written to config immediately.
+
 Or override with the `CREX_BANNER` environment variable (takes precedence over the config file):
 
 ```sh

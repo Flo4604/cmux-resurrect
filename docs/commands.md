@@ -123,7 +123,7 @@ crex tui                  # launch the interactive shell
 crex                      # also launches the shell when config exists
 ```
 
-An inline REPL with a `crex❯` prompt. Type commands, browse listings with arrow keys, and manage your workspaces without leaving the shell.
+An inline REPL with a `crex →` prompt. Type commands, browse listings with arrow keys, and manage your workspaces without leaving the shell.
 
 | Command | Description |
 |---------|-------------|
@@ -139,10 +139,19 @@ An inline REPL with a `crex❯` prompt. Type commands, browse listings with arro
 | `bp add <name> <path>` | Add Blueprint entry |
 | `bp remove <name\|#>` | Remove Blueprint entry |
 | `bp toggle <name\|#>` | Enable/disable entry |
+| `settings banner set <style>` | Set banner style (`flame`, `classic`, `plain`) |
+| `settings banner get` | Show current banner style |
+| `settings banner list` | List all available banner styles |
 | `watch start\|stop\|status` | Daemon controls |
 | `exit` | Quit |
 
 Listings show numbered items (`[1]`, `[2]`, …) — use the number instead of the name in any command.
+
+**Tab completion** — inside the TUI, press Tab or Shift-Tab to cycle through available commands and subcommands. Use Up/Down arrows to navigate history or listings. Press Escape to go back to the parent level.
+
+**Bare group commands** — typing a group name alone (`bp`, `settings`) and pressing Enter shows its available subcommands without executing anything.
+
+**Command header** — after a command is dispatched, the TUI displays a header identifying the command that ran. If a command is entered with incorrect usage, the prompt retains the input so you can correct it without retyping.
 
 ## Watch Daemon Mode
 

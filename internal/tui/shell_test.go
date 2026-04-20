@@ -42,7 +42,7 @@ func TestShellModel_ExitQuits(t *testing.T) {
 	m.prompt.SetValue("exit")
 
 	result, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	sm := result.(ShellModel)
+	sm := result.(*ShellModel)
 
 	if !sm.quitting {
 		t.Error("expected quitting=true after 'exit'")
@@ -57,7 +57,7 @@ func TestShellModel_HelpProducesOutput(t *testing.T) {
 	m.prompt.SetValue("help")
 
 	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	sm := result.(ShellModel)
+	sm := result.(*ShellModel)
 
 	// Help output is flushed into lastOutput and rendered in View().
 	view := sm.View()
@@ -71,7 +71,7 @@ func TestShellModel_UnknownCommand(t *testing.T) {
 	m.prompt.SetValue("wat")
 
 	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	sm := result.(ShellModel)
+	sm := result.(*ShellModel)
 
 	// Unknown command error is flushed into lastOutput.
 	if !strings.Contains(sm.lastOutput, "Unknown command") {
@@ -84,7 +84,7 @@ func TestShellModel_EmptyEnterDoesNothing(t *testing.T) {
 	m.prompt.SetValue("")
 
 	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	sm := result.(ShellModel)
+	sm := result.(*ShellModel)
 
 	if sm.quitting {
 		t.Error("empty enter should not quit")
@@ -99,7 +99,7 @@ func TestShellModel_HistoryRecordsCommands(t *testing.T) {
 
 	m.prompt.SetValue("help")
 	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	sm := result.(ShellModel)
+	sm := result.(*ShellModel)
 
 	if len(sm.history) != 1 {
 		t.Errorf("history length = %d, want 1", len(sm.history))
@@ -113,7 +113,7 @@ func TestShellModel_CtrlCQuits(t *testing.T) {
 	m := NewShellModel(nil, nil, client.BackendGhostty, "")
 
 	result, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
-	sm := result.(ShellModel)
+	sm := result.(*ShellModel)
 
 	if !sm.quitting {
 		t.Error("ctrl+c should quit")

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 🎬 Record a TUI interactive shell demo GIF
 #
-# Records the demo GIF for the v1.5.0 interactive shell feature.
+# Records the demo GIF for the v1.6.0 interactive shell.
 # Uses an isolated demo environment — nothing from real config leaks in.
 #
 # WORKFLOW:
@@ -13,16 +13,16 @@
 #   scripts/record-demo-tui.sh      — this file (setup, record, cleanup)
 #   assets/demo-tui.gif             — output GIF
 #
-# DEMO NARRATIVE:
-#   1. Launch       — crex tui, welcome message + prompt
-#   2. Help         — show all 18 commands grouped by category
-#   3. List         — browse saved layouts with arrows, quit
-#   4. Restore #    — restore by number reference from listing
-#   5. Now          — show live terminal state
-#   6. Templates    — browse the 16-template gallery
-#   7. Blueprint    — bp list shows entries
-#   8. Watch        — watch status shows daemon state
-#   9. Exit         — clean exit
+# DEMO NARRATIVE (centered on save / restore / templates + v1.6.0 features):
+#   1. Launch          — crex tui, banner + prompt
+#   2. Tab completion  — Tab shows all commands with icons (hero feature)
+#   3. Save            — save via tab-completed layout name
+#   4. List + browse   — ls with arrow navigation
+#   5. Restore         — tab-complete into saved layout names
+#   6. Templates       — browse gallery, use a template
+#   7. Settings depth  — 3-level drill: settings → banner → set flame
+#   8. Usage error     — wrong args, command stays in prompt
+#   9. Exit            — phoenix bye message
 #
 # Prerequisites:
 #   brew install vhs    # charmbracelet/vhs — terminal GIF recorder

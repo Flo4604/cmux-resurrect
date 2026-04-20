@@ -56,7 +56,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if sm, ok := finalModel.(tui.ShellModel); ok && sm.ByeMsg() != "" {
+	if sm, ok := finalModel.(*tui.ShellModel); ok && sm.ByeMsg() != "" {
 		fmt.Println("\n  " + sm.ByeMsg())
 		fmt.Println()
 	}

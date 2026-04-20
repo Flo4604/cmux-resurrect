@@ -21,13 +21,19 @@ var helpEntries = []helpEntry{
 	{"📋", "ls", "", func(b client.DetectedBackend) string { return "List saved layouts" }, "Layouts"},
 	{"🔄", "restore", "<name|#>", func(b client.DetectedBackend) string { return "Restore a saved layout" }, "Layouts"},
 	{"💾", "save", "[name]", func(b client.DetectedBackend) string { return "Save current layout" }, "Layouts"},
+	{"🔎", "show", "<name|#>", func(b client.DetectedBackend) string { return "Show layout details" }, "Layouts"},
+	{"📝", "edit", "<name|#>", func(b client.DetectedBackend) string { return "Edit layout in $EDITOR" }, "Layouts"},
 	{"🗑", "delete", "<name|#>", func(b client.DetectedBackend) string { return "Delete a saved layout" }, "Layouts"},
 	{"📦", "templates", "", func(b client.DetectedBackend) string { return "Browse template gallery" }, "Templates"},
 	{"🚀", "use", "<template|#>", func(b client.DetectedBackend) string { return "Create " + unitLabel(b, 1) + " from template" }, "Templates"},
+	{"🔎", "template show", "<name|#>", func(b client.DetectedBackend) string { return "Show template details" }, "Templates"},
+	{"📝", "template customize", "<name|#>", func(b client.DetectedBackend) string { return "Copy template to Blueprint" }, "Templates"},
 	{"📐", "bp add", "<name> <path>", func(b client.DetectedBackend) string { return "Add Blueprint entry" }, "Blueprint"},
 	{"📐", "bp list", "", func(b client.DetectedBackend) string { return "List Blueprint entries" }, "Blueprint"},
 	{"📐", "bp remove", "<name|#>", func(b client.DetectedBackend) string { return "Remove Blueprint entry" }, "Blueprint"},
 	{"📐", "bp toggle", "<name|#>", func(b client.DetectedBackend) string { return "Enable/disable entry" }, "Blueprint"},
+	{"📥", "import", "", func(b client.DetectedBackend) string { return "Create " + unitLabel(b, 2) + " from Blueprint" }, "Blueprint"},
+	{"📤", "export", "", func(b client.DetectedBackend) string { return "Export live state to Blueprint" }, "Blueprint"},
 	{"🎨", "settings banner set", "<flame|classic|plain>", func(b client.DetectedBackend) string { return "Set banner style" }, "Settings"},
 	{"🔍", "settings banner get", "", func(b client.DetectedBackend) string { return "Show current style" }, "Settings"},
 	{"📋", "settings banner list", "", func(b client.DetectedBackend) string { return "List available styles" }, "Settings"},
@@ -66,13 +72,25 @@ func renderHelp(backend client.DetectedBackend) string {
 			if e.group != group {
 				continue
 			}
+			// Compute visual padding from unstyled text (ANSI codes
+			// break fmt's %-Ns padding).
+			raw := e.cmd
+			if e.args != "" {
+				raw += " " + e.args
+			}
+			const colWidth = 24
+			pad := colWidth - len(raw)
+			if pad < 1 {
+				pad = 1
+			}
+
+			cmd := shellSuccessStyle.Render(e.cmd)
 			args := ""
 			if e.args != "" {
 				args = " " + shellDimStyle.Render(e.args)
 			}
 			desc := shellDimStyle.Render(e.desc(backend))
-			cmd := shellSuccessStyle.Render(e.cmd)
-			fmt.Fprintf(&b, "    %s  %-28s %s\n", e.icon, cmd+args, desc)
+			fmt.Fprintf(&b, "    %s  %s%s%s\n", padIcon(e.icon), cmd+args, strings.Repeat(" ", pad), desc)
 		}
 		b.WriteString("\n")
 	}

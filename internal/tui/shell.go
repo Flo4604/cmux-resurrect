@@ -547,14 +547,14 @@ func (m *ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 			m.writeError("banner not available")
 			break
 		}
-		m.output.WriteString(fmt.Sprintf("  Current banner style: %s\n\n",
-			shellSuccessStyle.Render(m.bannerStyle)))
+		fmt.Fprintf(m.output, "  Current banner style: %s\n\n",
+			shellSuccessStyle.Render(m.bannerStyle))
 
 	case "settings banner list":
 		m.output.WriteString("  Available banner styles:\n")
-		m.output.WriteString(fmt.Sprintf("    %s  gradient (ember → gold → green)\n", shellSuccessStyle.Render("flame  ")))
-		m.output.WriteString(fmt.Sprintf("    %s  solid green\n", shellSuccessStyle.Render("classic")))
-		m.output.WriteString(fmt.Sprintf("    %s  monochrome gray\n", shellSuccessStyle.Render("plain  ")))
+		fmt.Fprintf(m.output, "    %s  gradient (ember → gold → green)\n", shellSuccessStyle.Render("flame  "))
+		fmt.Fprintf(m.output, "    %s  solid green\n", shellSuccessStyle.Render("classic"))
+		fmt.Fprintf(m.output, "    %s  monochrome gray\n", shellSuccessStyle.Render("plain  "))
 		m.output.WriteString("\n")
 
 	case "bp toggle":

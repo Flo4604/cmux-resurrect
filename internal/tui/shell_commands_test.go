@@ -22,6 +22,12 @@ func TestParseCommand_Simple(t *testing.T) {
 		{"watch start", "watch", []string{"start"}},
 		{"watch stop", "watch", []string{"stop"}},
 		{"watch status", "watch", []string{"status"}},
+		{"show my-layout", "show", []string{"my-layout"}},
+		{"edit morning", "edit", []string{"morning"}},
+		{"import", "import", nil},
+		{"import-from-md", "import-from-md", nil},
+		{"export", "export", nil},
+		{"export-to-md", "export-to-md", nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
@@ -64,6 +70,113 @@ func TestParseCommand_Blueprint(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestParseCommand_Template(t *testing.T) {
+	tests := []struct {
+		input    string
+		wantCmd  string
+		wantArgs []string
+	}{
+		{"template show claude", "template show", []string{"claude"}},
+		{"template customize aside", "template customize", []string{"aside"}},
+		{"template show 2", "template show", []string{"2"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			cmd, args := parseCommand(tt.input)
+			if cmd != tt.wantCmd {
+				t.Errorf("parseCommand(%q) cmd = %q, want %q", tt.input, cmd, tt.wantCmd)
+			}
+			if len(args) != len(tt.wantArgs) {
+				t.Errorf("parseCommand(%q) args = %v, want %v", tt.input, args, tt.wantArgs)
+				return
+			}
+			for i, a := range args {
+				if a != tt.wantArgs[i] {
+					t.Errorf("parseCommand(%q) args[%d] = %q, want %q", tt.input, i, a, tt.wantArgs[i])
+				}
+			}
+		})
+	}
+}
+
+func TestParseCommand_SettingsBanner(t *testing.T) {
+	tests := []struct {
+		input    string
+		wantCmd  string
+		wantArgs []string
+	}{
+		{"settings banner set flame", "settings banner set", []string{"flame"}},
+		{"settings banner get", "settings banner get", nil},
+		{"settings banner list", "settings banner list", nil},
+		{"settings banner set classic", "settings banner set", []string{"classic"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			cmd, args := parseCommand(tt.input)
+			if cmd != tt.wantCmd {
+				t.Errorf("parseCommand(%q) cmd = %q, want %q", tt.input, cmd, tt.wantCmd)
+			}
+			if len(args) != len(tt.wantArgs) {
+				t.Errorf("parseCommand(%q) args = %v, want %v", tt.input, args, tt.wantArgs)
+				return
+			}
+			for i, a := range args {
+				if a != tt.wantArgs[i] {
+					t.Errorf("parseCommand(%q) args[%d] = %q, want %q", tt.input, i, a, tt.wantArgs[i])
+				}
+			}
+		})
+	}
+}
+
+func TestPadIcon(t *testing.T) {
+	// Text-presentation emoji get an extra space for alignment.
+	if got := padIcon("🖥"); got != "🖥 " {
+		t.Errorf("padIcon(🖥) = %q, want %q", got, "🖥 ")
+	}
+	if got := padIcon("⏱"); got != "⏱ " {
+		t.Errorf("padIcon(⏱) = %q, want %q", got, "⏱ ")
+	}
+	if got := padIcon("🗑"); got != "🗑 " {
+		t.Errorf("padIcon(🗑) = %q, want %q", got, "🗑 ")
+	}
+	// Full-width emoji should NOT get padding.
+	if got := padIcon("📋"); got != "📋" {
+		t.Errorf("padIcon(📋) = %q, want %q", got, "📋")
+	}
+	if got := padIcon("🚀"); got != "🚀" {
+		t.Errorf("padIcon(🚀) = %q, want %q", got, "🚀")
+	}
+}
+
+func TestResolveNameOrNumber_ByName(t *testing.T) {
+	items := []Item{
+		{Kind: KindLayout, Name: "morning"},
+		{Kind: KindLayout, Name: "afternoon"},
+	}
+	resolved, err := resolveNameOrNumber("morning", items)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resolved != "morning" {
+		t.Errorf("resolveNameOrNumber(morning) = %q, want %q", resolved, "morning")
+	}
+}
+
+func TestResolveNameOrNumber_ByNumber(t *testing.T) {
+	items := []Item{
+		{Kind: KindLayout, Name: "morning"},
+		{Kind: KindLayout, Name: "afternoon"},
+	}
+	resolved, err := resolveNameOrNumber("2", items)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resolved != "afternoon" {
+		t.Errorf("resolveNameOrNumber(2) = %q, want %q", resolved, "afternoon")
 	}
 }
 

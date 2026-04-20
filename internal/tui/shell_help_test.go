@@ -9,7 +9,7 @@ import (
 
 func TestRenderHelp_ContainsAllGroups(t *testing.T) {
 	help := renderHelp(client.BackendGhostty)
-	groups := []string{"Live", "Layouts", "Templates", "Blueprint", "Shell"}
+	groups := []string{"Live", "Layouts", "Templates", "Blueprint", "Settings", "Shell"}
 	for _, g := range groups {
 		if !strings.Contains(help, g) {
 			t.Errorf("help output missing group %q", g)
@@ -19,7 +19,7 @@ func TestRenderHelp_ContainsAllGroups(t *testing.T) {
 
 func TestRenderHelp_ContainsAllCommands(t *testing.T) {
 	help := renderHelp(client.BackendGhostty)
-	commands := []string{"now", "watch", "ls", "restore", "save", "delete", "templates", "use", "bp add", "bp list", "bp remove", "bp toggle", "help", "exit"}
+	commands := []string{"now", "watch", "ls", "restore", "save", "show", "edit", "delete", "templates", "use", "template show", "template customize", "bp add", "bp list", "bp remove", "bp toggle", "import", "export", "settings banner set", "settings banner get", "settings banner list", "help", "exit"}
 	for _, cmd := range commands {
 		if !strings.Contains(help, cmd) {
 			t.Errorf("help output missing command %q", cmd)
@@ -29,7 +29,7 @@ func TestRenderHelp_ContainsAllCommands(t *testing.T) {
 
 func TestRenderHelp_ContainsIcons(t *testing.T) {
 	help := renderHelp(client.BackendGhostty)
-	icons := []string{"🖥", "⏱", "📋", "🔄", "💾", "🗑", "📦", "🚀", "📐", "❓", "👋"}
+	icons := []string{"🖥", "⏱", "📋", "🔄", "💾", "🔎", "📝", "🗑", "📦", "🚀", "📐", "📥", "📤", "❓", "👋"}
 	for _, icon := range icons {
 		if !strings.Contains(help, icon) {
 			t.Errorf("help output missing icon %q", icon)

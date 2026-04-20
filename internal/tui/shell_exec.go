@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"syscall"
 
@@ -137,6 +139,7 @@ func (m *ShellModel) execSave(name string) {
 	label := unitLabel(m.backend, count)
 	m.output.WriteString(shellSuccessStyle.Render(fmt.Sprintf("  ✓ Saved %q — %d %s", name, count, label)))
 	m.output.WriteString("\n\n")
+	m.completer.Invalidate()
 }
 
 // execRestore restores a saved layout by name.
@@ -202,6 +205,8 @@ func (m *ShellModel) execDelete(name string) {
 		if err := m.store.Delete(name); err != nil {
 			m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
 			m.output.WriteString("\n")
+		} else {
+			m.completer.Invalidate()
 		}
 	}
 	m.mode = modeConfirm
@@ -336,6 +341,7 @@ func (m *ShellModel) execBpAdd(name, path string) {
 
 	m.output.WriteString(shellSuccessStyle.Render(fmt.Sprintf("  ✓ Added %q to Blueprint", name)))
 	m.output.WriteString("\n\n")
+	m.completer.Invalidate()
 }
 
 // execBpList lists all Blueprint projects and enters browse mode.
@@ -394,9 +400,322 @@ func (m *ShellModel) execBpRemove(name string) {
 		if err := mdfile.RemoveProject(m.wsFile, name); err != nil {
 			m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
 			m.output.WriteString("\n")
+		} else {
+			m.completer.Invalidate()
 		}
 	}
 	m.mode = modeConfirm
+}
+
+// editDoneMsg signals that the external editor process has exited.
+type editDoneMsg struct{ err error }
+
+// execShow renders detailed layout information (workspaces, panes, CWDs).
+func (m *ShellModel) execShow(name string) {
+	if m.store == nil {
+		m.output.WriteString(shellErrorStyle.Render("  ✗ No store configured"))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	layout, err := m.store.Load(name)
+	if err != nil {
+		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	// Header.
+	m.output.WriteString(shellHeadingStyle.Render(fmt.Sprintf("  📦 %s", layout.Name)))
+	m.output.WriteString("\n")
+	if layout.Description != "" {
+		m.output.WriteString(shellDimStyle.Render("  " + layout.Description))
+		m.output.WriteString("\n")
+	}
+	saved := layout.SavedAt.Local().Format("Jan 02, 2006 15:04")
+	label := unitLabel(m.backend, len(layout.Workspaces))
+	m.output.WriteString(shellDimStyle.Render(fmt.Sprintf("  Saved %s · %d %s", saved, len(layout.Workspaces), label)))
+	m.output.WriteString("\n\n")
+
+	home, _ := os.UserHomeDir()
+
+	for _, ws := range layout.Workspaces {
+		title := shellSuccessStyle.Render(ws.Title)
+		badges := ""
+		if ws.Pinned {
+			badges += " 📌"
+		}
+		if ws.Active {
+			badges += " " + shellDimStyle.Render("◀ active")
+		}
+		fmt.Fprintf(m.output, "  %s%s\n", title, badges)
+
+		// CWD.
+		cwd := ws.CWD
+		if home != "" {
+			cwd = strings.Replace(cwd, home, "~", 1)
+		}
+		fmt.Fprintf(m.output, "  %s\n", shellDimStyle.Render("cwd "+cwd))
+
+		// Pane tree.
+		for i, p := range ws.Panes {
+			isLast := i == len(ws.Panes)-1
+			prefix := "├──"
+			if isLast {
+				prefix = "└──"
+			}
+			prefix = shellDimStyle.Render(prefix)
+
+			var desc string
+			if p.Split != "" {
+				desc = shellFlameStyle.Render("→"+p.Split) + " "
+			}
+			if p.Command != "" {
+				cmd := p.Command
+				if len(cmd) > 50 {
+					cmd = cmd[:47] + "..."
+				}
+				desc += shellSuccessStyle.Render(cmd)
+			} else {
+				desc += shellDimStyle.Render("shell")
+			}
+			if p.Focus {
+				desc += " " + shellFlameStyle.Render("★")
+			}
+
+			fmt.Fprintf(m.output, "  %s %s\n", prefix, desc)
+		}
+		m.output.WriteString("\n")
+	}
+}
+
+// execEdit suspends the TUI and opens the layout file in $EDITOR.
+func (m *ShellModel) execEdit(name string) tea.Cmd {
+	if m.store == nil {
+		m.output.WriteString(shellErrorStyle.Render("  ✗ No store configured"))
+		m.output.WriteString("\n\n")
+		return nil
+	}
+
+	if !m.store.Exists(name) {
+		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ Layout %q not found", name)))
+		m.output.WriteString("\n\n")
+		return nil
+	}
+
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = os.Getenv("VISUAL")
+	}
+	if editor == "" {
+		editor = "vi"
+	}
+
+	path := m.store.Path(name)
+	parts := strings.Fields(editor)
+	c := exec.Command(parts[0], append(parts[1:], path)...)
+	return tea.ExecProcess(c, func(err error) tea.Msg {
+		return editDoneMsg{err: err}
+	})
+}
+
+// execTemplateShow renders a template card with ASCII diagram and metadata.
+func (m *ShellModel) execTemplateShow(name string) {
+	tmpl, ok := gallery.Get(name)
+	if !ok {
+		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ Template %q not found", name)))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	// Header: icon + name — description.
+	fmt.Fprintf(m.output, "\n  %s %s — %s\n\n",
+		tmpl.Icon,
+		shellSuccessStyle.Render(tmpl.Name),
+		shellDimStyle.Render(tmpl.Description))
+
+	// Metadata (pad labels to 10 chars for consistent column alignment).
+	label := func(s string) string { return shellDimStyle.Render(fmt.Sprintf("%-10s", s)) }
+	fmt.Fprintf(m.output, "  %s %s\n", label("Category:"), shellSuccessStyle.Render(tmpl.Category))
+	fmt.Fprintf(m.output, "  %s %s\n", label("Panes:"), shellSuccessStyle.Render(fmt.Sprintf("%d", len(tmpl.Panes))))
+
+	// Split sequence.
+	splits := []string{"main"}
+	for _, p := range tmpl.Panes {
+		if p.Split != "" {
+			splits = append(splits, p.Split)
+		}
+	}
+	fmt.Fprintf(m.output, "  %s %s\n", label("Splits:"), shellSuccessStyle.Render(strings.Join(splits, " → ")))
+
+	if len(tmpl.Tags) > 0 {
+		fmt.Fprintf(m.output, "  %s %s\n", label("Tags:"), shellSuccessStyle.Render(strings.Join(tmpl.Tags, ", ")))
+	}
+	m.output.WriteString("\n")
+}
+
+// execTemplateCustomize copies a gallery template into the workspace Blueprint.
+func (m *ShellModel) execTemplateCustomize(name string) {
+	tmpl, ok := gallery.Get(name)
+	if !ok {
+		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ Template %q not found", name)))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	if m.wsFile == "" {
+		m.output.WriteString(shellErrorStyle.Render("  ✗ No workspace Blueprint file configured"))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	wf, err := mdfile.Parse(m.wsFile)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			wf = &model.WorkspaceFile{
+				Templates: make(map[string]*model.Template),
+			}
+		} else {
+			m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
+			m.output.WriteString("\n\n")
+			return
+		}
+	}
+
+	if wf.Templates == nil {
+		wf.Templates = make(map[string]*model.Template)
+	}
+	if _, exists := wf.Templates[name]; exists {
+		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ Template %q already exists in your Blueprint", name)))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	userTmpl := &model.Template{Name: tmpl.Name}
+	for _, tp := range tmpl.Panes {
+		pane := tp
+		pane.FocusTarget = -1
+		userTmpl.Panes = append(userTmpl.Panes, pane)
+	}
+	wf.Templates[name] = userTmpl
+
+	if err := mdfile.Write(m.wsFile, wf); err != nil {
+		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	m.output.WriteString(shellSuccessStyle.Render(fmt.Sprintf("  ✓ Copied %q to your Blueprint", name)))
+	m.output.WriteString("\n")
+	m.output.WriteString(shellDimStyle.Render("  Your copy now takes priority over the built-in."))
+	m.output.WriteString("\n\n")
+	m.completer.Invalidate()
+}
+
+// execImport imports workspaces from the Blueprint file.
+func (m *ShellModel) execImport() {
+	if m.client == nil {
+		m.output.WriteString(shellErrorStyle.Render("  ✗ No backend connected"))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	if m.wsFile == "" {
+		m.output.WriteString(shellErrorStyle.Render("  ✗ No workspace Blueprint file configured"))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	wf, err := mdfile.Parse(m.wsFile)
+	if err != nil {
+		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	enabled := wf.EnabledProjects()
+	if len(enabled) == 0 {
+		m.output.WriteString(shellDimStyle.Render("  No enabled entries in Blueprint."))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	m.output.WriteString(shellDimStyle.Render(fmt.Sprintf("  📥 Importing %d entries from Blueprint…", len(enabled))))
+	m.output.WriteString("\n\n")
+
+	importer := &orchestrate.Importer{
+		Client: m.client,
+		OnProgress: func(event orchestrate.ImportEvent) {
+			switch event.Status {
+			case orchestrate.ImportCreated:
+				fmt.Fprintf(m.output, "  %s  %s (%d panes)\n",
+					shellSuccessStyle.Render("OK"),
+					event.Title,
+					len(event.Panes))
+			case orchestrate.ImportSkipped:
+				fmt.Fprintf(m.output, "  %s  %s %s\n",
+					shellDimStyle.Render("SKIP"),
+					event.Title,
+					shellDimStyle.Render("(already exists)"))
+			case orchestrate.ImportFailed:
+				fmt.Fprintf(m.output, "  %s  %s: %v\n",
+					shellErrorStyle.Render("FAIL"),
+					event.Title,
+					event.Err)
+			case orchestrate.ImportWarn:
+				fmt.Fprintf(m.output, "  %s  %s\n",
+					shellErrorStyle.Render("WARN"),
+					event.Warn)
+			}
+		},
+	}
+
+	result, err := importer.ImportFromMD(wf, false)
+	if err != nil {
+		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	m.output.WriteString("\n")
+	m.output.WriteString(shellSuccessStyle.Render(fmt.Sprintf("  ✓ Import complete: %d created, %d skipped", result.Created, result.Skipped)))
+	m.output.WriteString("\n\n")
+	m.completer.Invalidate()
+}
+
+// execExport exports live state to the Blueprint file.
+func (m *ShellModel) execExport() {
+	if m.client == nil {
+		m.output.WriteString(shellErrorStyle.Render("  ✗ No backend connected"))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	if m.wsFile == "" {
+		m.output.WriteString(shellErrorStyle.Render("  ✗ No workspace Blueprint file configured"))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	exporter := &orchestrate.Exporter{Client: m.client}
+	if err := exporter.ExportToMD(m.wsFile); err != nil {
+		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	// Read back for the summary.
+	wf, err := mdfile.Parse(m.wsFile)
+	if err != nil {
+		m.output.WriteString(shellSuccessStyle.Render("  ✓ Exported to Blueprint"))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	label := unitLabel(m.backend, len(wf.Projects))
+	m.output.WriteString(shellSuccessStyle.Render(fmt.Sprintf("  ✓ Exported %d %s to Blueprint", len(wf.Projects), label)))
+	m.output.WriteString("\n\n")
+	m.completer.Invalidate()
 }
 
 // execBpToggle toggles the enabled state of a Blueprint project by name.
@@ -420,4 +739,5 @@ func (m *ShellModel) execBpToggle(name string) {
 	}
 	m.output.WriteString(shellSuccessStyle.Render(fmt.Sprintf("  ✓ %q is now %s", name, state)))
 	m.output.WriteString("\n\n")
+	m.completer.Invalidate()
 }

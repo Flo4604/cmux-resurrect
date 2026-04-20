@@ -3,16 +3,28 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/drolosoft/cmux-resurrect/internal/gallery"
 	"github.com/drolosoft/cmux-resurrect/internal/mdfile"
 	"github.com/drolosoft/cmux-resurrect/internal/persist"
 )
 
+// completionCacheTTL controls how long cached completion items remain valid.
+// Keeps filesystem I/O out of the per-keystroke hot path while staying
+// fresh enough that save/delete results appear within a couple of seconds.
+const completionCacheTTL = 2 * time.Second
+
 // completionEngine generates tab-completion candidates for the shell.
 type completionEngine struct {
 	store  persist.Store
 	wsFile string
+
+	// Cached data sources (avoid I/O on every keystroke).
+	layoutCache   []completionItem
+	layoutCacheAt time.Time
+	bpCache       []completionItem
+	bpCacheAt     time.Time
 }
 
 // completionItem pairs a fillable value with display metadata.
@@ -26,19 +38,30 @@ type completionItem struct {
 
 // level1Commands are the top-level commands (no subcommand expansion).
 var level1Commands = []completionItem{
-	{"help", "❓", "Show help"},
-	{"ls", "📋", "List saved layouts"},
-	{"list", "📋", "List saved layouts"},
+	// Live
 	{"now", "🖥", "Show current state"},
-	{"save", "💾", "Save current layout"},
-	{"restore", "🔄", "Restore a saved layout"},
+	{"watch", "⏱", "Auto-save daemon"},
+	// Layouts (alphabetical)
 	{"delete", "🗑", "Delete a saved layout"},
+	{"edit", "📝", "Edit layout in $EDITOR"},
+	{"list", "📋", "List saved layouts"},
+	{"ls", "📋", "List saved layouts"},
+	{"restore", "🔄", "Restore a saved layout"},
+	{"save", "💾", "Save current layout"},
+	{"show", "🔎", "Show layout details"},
+	// Templates (alphabetical)
+	{"template", "📦", "Template commands…"},
 	{"templates", "📦", "Browse template gallery"},
 	{"use", "🚀", "Create from template"},
-	{"watch", "⏱", "Auto-save daemon"},
+	// Blueprint (alphabetical)
 	{"bp", "📐", "Blueprint commands…"},
 	{"blueprint", "📐", "Blueprint commands…"},
+	{"export", "📤", "Export to Blueprint"},
+	{"import", "📥", "Import from Blueprint"},
+	// Settings
 	{"settings", "⚙️", "Settings & preferences"},
+	// Shell
+	{"help", "❓", "Show help"},
 	{"exit", "👋", "Exit the shell"},
 	{"quit", "👋", "Exit the shell"},
 }
@@ -59,12 +82,16 @@ var level2Subcommands = map[string][]completionItem{
 		{"remove", "🗑", "Remove Blueprint entry"},
 		{"toggle", "🔀", "Enable/disable entry"},
 	},
+	"template": {
+		{"customize", "📝", "Copy template to Blueprint"},
+		{"show", "🔎", "Show template details"},
+	},
 	"settings": {
 		{"banner", "🎨", "Banner style"},
 	},
 	"watch": {
-		{"status", "📊", "Show daemon status"},
 		{"start", "▶️", "Start daemon"},
+		{"status", "📊", "Show daemon status"},
 		{"stop", "⏹", "Stop daemon"},
 	},
 }
@@ -77,23 +104,24 @@ var nestedGroupPrefixes = map[string]bool{
 // level3Subcommands are the subcommands for three-word command groups.
 var level3Subcommands = map[string][]completionItem{
 	"settings banner": {
-		{"set", "🎨", "Set banner style"},
 		{"get", "🔍", "Show current style"},
 		{"list", "📋", "List available styles"},
+		{"set", "🎨", "Set banner style"},
 	},
 }
 
 // singleCommands is the set of single-word commands that take arguments.
 var singleCommands = map[string]bool{
 	"help": true, "ls": true, "list": true, "now": true,
-	"save": true, "restore": true, "delete": true,
+	"save": true, "restore": true, "show": true, "edit": true, "delete": true,
 	"templates": true, "use": true, "watch": true,
+	"import": true, "import-from-md": true, "export": true, "export-to-md": true,
 	"exit": true, "quit": true, "?": true,
 }
 
 // twoWordPrefixes maps the first word of two-word commands to valid subcommands.
 var twoWordPrefixes = map[string]bool{
-	"bp": true, "blueprint": true, "settings": true, "watch": true,
+	"bp": true, "blueprint": true, "template": true, "settings": true, "watch": true,
 }
 
 // --- Candidate generation ---------------------------------------------------
@@ -259,14 +287,10 @@ func (ce *completionEngine) argCompletions(cmd, partial, prefix string) completi
 	var argItems []completionItem
 
 	switch cmd {
-	case "restore", "delete", "save":
-		for _, n := range ce.layoutNames() {
-			argItems = append(argItems, completionItem{n, "📄", ""})
-		}
-	case "use":
-		for _, n := range ce.templateNames() {
-			argItems = append(argItems, completionItem{n, "📦", ""})
-		}
+	case "restore", "delete", "save", "show", "edit":
+		argItems = ce.layoutItems()
+	case "use", "template show", "template customize":
+		argItems = ce.templateItems()
 	case "watch":
 		return ce.level2Completions("watch", partial)
 	case "settings banner set":
@@ -277,9 +301,7 @@ func (ce *completionEngine) argCompletions(cmd, partial, prefix string) completi
 		}
 	case "bp remove", "bp rm", "bp toggle",
 		"blueprint remove", "blueprint toggle":
-		for _, n := range ce.blueprintNames() {
-			argItems = append(argItems, completionItem{n, "📐", ""})
-		}
+		argItems = ce.blueprintItems()
 	default:
 		return completionResult{}
 	}
@@ -294,6 +316,24 @@ func (ce *completionEngine) argCompletions(cmd, partial, prefix string) completi
 		}
 	}
 	return completionResult{values: values, items: items}
+}
+
+// --- Icon width fix ---------------------------------------------------------
+
+// textPresentationEmoji are emoji with Emoji_Presentation=No that Ghostty
+// renders as 1-cell text glyphs. A trailing space aligns them with 2-cell emoji.
+var textPresentationEmoji = map[string]bool{
+	"🖥": true, // U+1F5A5
+	"⏱": true, // U+23F1
+	"🗑": true, // U+1F5D1
+	"⏹": true, // U+23F9
+}
+
+func padIcon(icon string) string {
+	if textPresentationEmoji[icon] {
+		return icon + " "
+	}
+	return icon
 }
 
 // --- Rendering --------------------------------------------------------------
@@ -315,16 +355,17 @@ func RenderItemsHighlighted(items []completionItem, highlight int) string {
 			nameStyle = shellPromptStyle // bright green bold for selected
 			marker = shellPromptStyle.Render("▸ ")
 		}
+		icon := padIcon(it.icon)
 		if it.desc != "" {
 			fmt.Fprintf(&b, "  %s%s  %s  %s\n",
 				marker,
-				it.icon,
-				nameStyle.Render(fmt.Sprintf("%-12s", it.value)),
+				icon,
+				nameStyle.Render(fmt.Sprintf("%-14s", it.value)),
 				descStyle.Render(it.desc))
 		} else {
 			fmt.Fprintf(&b, "  %s%s  %s\n",
 				marker,
-				it.icon,
+				icon,
 				nameStyle.Render(it.value))
 		}
 	}
@@ -334,43 +375,68 @@ func RenderItemsHighlighted(items []completionItem, highlight int) string {
 
 // --- Data source helpers ----------------------------------------------------
 
-func (ce *completionEngine) layoutNames() []string {
+// Invalidate clears cached completion data, forcing a refresh on the next
+// completion request. Call after save, delete, import, export, or bp mutations.
+func (ce *completionEngine) Invalidate() {
+	ce.layoutCacheAt = time.Time{}
+	ce.bpCacheAt = time.Time{}
+}
+
+func (ce *completionEngine) layoutItems() []completionItem {
 	if ce.store == nil {
 		return nil
+	}
+	if time.Since(ce.layoutCacheAt) < completionCacheTTL {
+		return ce.layoutCache
 	}
 	metas, err := ce.store.List()
 	if err != nil {
 		return nil
 	}
-	names := make([]string, len(metas))
+	items := make([]completionItem, len(metas))
 	for i, m := range metas {
-		names[i] = m.Name
+		desc := m.Description
+		if desc == "" {
+			desc = fmt.Sprintf("%d tabs", m.WorkspaceCount)
+		}
+		items[i] = completionItem{m.Name, "📄", desc}
 	}
-	return names
+	ce.layoutCache = items
+	ce.layoutCacheAt = time.Now()
+	return items
 }
 
-func (ce *completionEngine) templateNames() []string {
+func (ce *completionEngine) templateItems() []completionItem {
 	templates := gallery.List()
-	names := make([]string, len(templates))
+	items := make([]completionItem, len(templates))
 	for i, t := range templates {
-		names[i] = t.Name
+		items[i] = completionItem{t.Name, t.Icon, t.Description}
 	}
-	return names
+	return items
 }
 
-func (ce *completionEngine) blueprintNames() []string {
+func (ce *completionEngine) blueprintItems() []completionItem {
 	if ce.wsFile == "" {
 		return nil
+	}
+	if time.Since(ce.bpCacheAt) < completionCacheTTL {
+		return ce.bpCache
 	}
 	wf, err := mdfile.Parse(ce.wsFile)
 	if err != nil {
 		return nil
 	}
-	names := make([]string, len(wf.Projects))
+	items := make([]completionItem, len(wf.Projects))
 	for i, p := range wf.Projects {
-		names[i] = p.Name
+		icon := p.Icon
+		if icon == "" {
+			icon = "📐"
+		}
+		items[i] = completionItem{p.Name, icon, p.Template}
 	}
-	return names
+	ce.bpCache = items
+	ce.bpCacheAt = time.Now()
+	return items
 }
 
 // commonPrefix returns the longest common prefix of all strings.

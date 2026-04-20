@@ -60,7 +60,7 @@ type ShellModel struct {
 }
 
 // NewShellModel creates the interactive shell model.
-func NewShellModel(store persist.Store, cl client.Backend, backend client.DetectedBackend, wsFile string) ShellModel {
+func NewShellModel(store persist.Store, cl client.Backend, backend client.DetectedBackend, wsFile string) *ShellModel {
 	ti := textinput.New()
 	ti.Prompt = "  " + shellSuccessStyle.Render("crex") + " " + shellFlameStyle.Render("→") + " "
 	ti.Focus()
@@ -86,7 +86,7 @@ func NewShellModel(store persist.Store, cl client.Backend, backend client.Detect
 	w.WriteString(shellDimStyle.Render(" to quit."))
 	w.WriteString("\n")
 
-	return ShellModel{
+	return &ShellModel{
 		mode:       modePrompt,
 		prompt:     ti,
 		output:     &strings.Builder{},
@@ -105,10 +105,10 @@ func NewShellModel(store persist.Store, cl client.Backend, backend client.Detect
 func (m *ShellModel) SetBannerStyle(s string) { m.bannerStyle = s }
 
 // ByeMsg returns the farewell message to print after the TUI exits.
-func (m ShellModel) ByeMsg() string { return m.byeMsg }
+func (m *ShellModel) ByeMsg() string { return m.byeMsg }
 
 // Init is the Bubble Tea init function.
-func (m ShellModel) Init() tea.Cmd {
+func (m *ShellModel) Init() tea.Cmd {
 	return textinput.Blink
 }
 
@@ -122,10 +122,19 @@ func (m *ShellModel) flushOutput() {
 }
 
 // Update handles all incoming messages.
-func (m ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case restoreResultMsg:
 		m.handleRestoreResult(msg)
+		m.flushOutput()
+		return m, nil
+	case editDoneMsg:
+		if msg.err != nil {
+			m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ Editor: %v", msg.err)))
+		} else {
+			m.output.WriteString(shellSuccessStyle.Render("  ✓ Editor closed"))
+		}
+		m.output.WriteString("\n\n")
 		m.flushOutput()
 		return m, nil
 	case tea.KeyMsg:
@@ -145,7 +154,7 @@ func (m ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m ShellModel) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *ShellModel) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlC:
 		m.quitting = true
@@ -224,22 +233,19 @@ func (m ShellModel) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.lastOutput = ""
 		m.output.Reset()
 
-		// Dispatch (exec methods write to m.output)
-		model, dispatchCmd := m.dispatch(input)
-
-		// Flush buffered output into lastOutput
-		sm := model.(ShellModel)
-		sm.flushOutput()
+		// Dispatch (exec methods write to m.output via pointer).
+		_, dispatchCmd := m.dispatch(input)
+		m.flushOutput()
 
 		// Keep command in prompt on usage errors so the user can append args.
-		if strings.Contains(sm.lastOutput, "Usage:") {
-			sm.prompt.SetValue(input + " ")
-			sm.prompt.CursorEnd()
+		if strings.Contains(m.lastOutput, "Usage:") {
+			m.prompt.SetValue(input + " ")
+			m.prompt.CursorEnd()
 		} else {
-			sm.prompt.SetValue("")
+			m.prompt.SetValue("")
 		}
 
-		return sm, dispatchCmd
+		return m, dispatchCmd
 	}
 
 	// Escape: remove last level from the command (navigate back).
@@ -351,17 +357,16 @@ func (m ShellModel) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m ShellModel) updateBrowse(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *ShellModel) updateBrowse(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	bm, _ := m.browse.Update(msg)
 	m.browse = bm
 
 	if bm.done {
 		m.mode = modePrompt
 		if bm.selected {
-			model, cmd := m.handleBrowseSelection(bm.SelectedItem())
-			sm := model.(ShellModel)
-			sm.flushOutput()
-			return sm, cmd
+			_, cmd := m.handleBrowseSelection(bm.SelectedItem())
+			m.flushOutput()
+			return m, cmd
 		}
 		if bm.passthrough != 0 {
 			m.prompt.SetValue(string(bm.passthrough))
@@ -371,7 +376,7 @@ func (m ShellModel) updateBrowse(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m ShellModel) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *ShellModel) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Type == tea.KeyRunes && len(msg.Runes) == 1 && (msg.Runes[0] == 'y' || msg.Runes[0] == 'Y') {
 		if m.confirmFn != nil {
 			m.confirmFn()
@@ -389,7 +394,7 @@ func (m ShellModel) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m ShellModel) handleBrowseSelection(item Item) (tea.Model, tea.Cmd) {
+func (m *ShellModel) handleBrowseSelection(item Item) (tea.Model, tea.Cmd) {
 	switch m.browse.action {
 	case "restore":
 		return m, m.execRestore(item.Name)
@@ -401,7 +406,29 @@ func (m ShellModel) handleBrowseSelection(item Item) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
+// writeError writes a styled error line to the output buffer.
+func (m *ShellModel) writeError(msg string) {
+	m.output.WriteString(shellErrorStyle.Render("  ✗ " + msg))
+	m.output.WriteString("\n\n")
+}
+
+// requireResolved validates that at least one arg exists and resolves
+// a name-or-number reference against the last listing. Returns the
+// resolved name and true on success, or writes an error and returns false.
+func (m *ShellModel) requireResolved(args []string, usage string) (string, bool) {
+	if len(args) == 0 {
+		m.writeError("Usage: " + usage)
+		return "", false
+	}
+	resolved, err := resolveNameOrNumber(args[0], m.lastItems)
+	if err != nil {
+		m.writeError(err.Error())
+		return "", false
+	}
+	return resolved, true
+}
+
+func (m *ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 	// Silently ignore comment lines (useful for demos).
 	if strings.HasPrefix(strings.TrimSpace(input), "#") {
 		return m, nil
@@ -433,49 +460,48 @@ func (m ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 		m.execSave(name)
 
 	case "restore":
-		if len(args) == 0 {
-			m.output.WriteString(shellErrorStyle.Render("  ✗ Usage: restore <name|#>"))
-			m.output.WriteString("\n\n")
-			break
+		if resolved, ok := m.requireResolved(args, "restore <name|#>"); ok {
+			return m, m.execRestore(resolved)
 		}
-		resolved, err := resolveNameOrNumber(args[0], m.lastItems)
-		if err != nil {
-			m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %s", err)))
-			m.output.WriteString("\n\n")
-			break
-		}
-		return m, m.execRestore(resolved)
 
 	case "delete":
-		if len(args) == 0 {
-			m.output.WriteString(shellErrorStyle.Render("  ✗ Usage: delete <name|#>"))
-			m.output.WriteString("\n\n")
-			break
+		if resolved, ok := m.requireResolved(args, "delete <name|#>"); ok {
+			m.execDelete(resolved)
 		}
-		resolved, err := resolveNameOrNumber(args[0], m.lastItems)
-		if err != nil {
-			m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %s", err)))
-			m.output.WriteString("\n\n")
-			break
+
+	case "show":
+		if resolved, ok := m.requireResolved(args, "show <name|#>"); ok {
+			m.execShow(resolved)
 		}
-		m.execDelete(resolved)
+
+	case "edit":
+		if resolved, ok := m.requireResolved(args, "edit <name|#>"); ok {
+			return m, m.execEdit(resolved)
+		}
 
 	case "templates":
 		m.execTemplates()
 
 	case "use":
-		if len(args) == 0 {
-			m.output.WriteString(shellErrorStyle.Render("  ✗ Usage: use <template|#>"))
-			m.output.WriteString("\n\n")
-			break
+		if resolved, ok := m.requireResolved(args, "use <template|#>"); ok {
+			m.execUse(resolved)
 		}
-		resolved, err := resolveNameOrNumber(args[0], m.lastItems)
-		if err != nil {
-			m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %s", err)))
-			m.output.WriteString("\n\n")
-			break
+
+	case "template show":
+		if resolved, ok := m.requireResolved(args, "template show <name|#>"); ok {
+			m.execTemplateShow(resolved)
 		}
-		m.execUse(resolved)
+
+	case "template customize":
+		if resolved, ok := m.requireResolved(args, "template customize <name|#>"); ok {
+			m.execTemplateCustomize(resolved)
+		}
+
+	case "import", "import-from-md":
+		m.execImport()
+
+	case "export", "export-to-md":
+		m.execExport()
 
 	case "watch":
 		sub := ""
@@ -486,8 +512,7 @@ func (m ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 
 	case "bp add":
 		if len(args) < 2 {
-			m.output.WriteString(shellErrorStyle.Render("  ✗ Usage: bp add <name> <path>"))
-			m.output.WriteString("\n\n")
+			m.writeError("Usage: bp add <name> <path>")
 			break
 		}
 		m.execBpAdd(args[0], args[1])
@@ -496,34 +521,22 @@ func (m ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 		m.execBpList()
 
 	case "bp remove", "bp rm":
-		if len(args) == 0 {
-			m.output.WriteString(shellErrorStyle.Render("  ✗ Usage: bp remove <name|#>"))
-			m.output.WriteString("\n\n")
-			break
+		if resolved, ok := m.requireResolved(args, "bp remove <name|#>"); ok {
+			m.execBpRemove(resolved)
 		}
-		resolved, err := resolveNameOrNumber(args[0], m.lastItems)
-		if err != nil {
-			m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %s", err)))
-			m.output.WriteString("\n\n")
-			break
-		}
-		m.execBpRemove(resolved)
 
 	case "settings banner set":
 		if len(args) == 0 {
-			m.output.WriteString(shellErrorStyle.Render("  ✗ Usage: settings banner set <flame|classic|plain>"))
-			m.output.WriteString("\n\n")
+			m.writeError("Usage: settings banner set <flame|classic|plain>")
 			break
 		}
 		if m.BannerCycle == nil {
-			m.output.WriteString(shellErrorStyle.Render("  ✗ banner not available"))
-			m.output.WriteString("\n\n")
+			m.writeError("banner not available")
 			break
 		}
 		newStyle, preview, err := m.BannerCycle(args[0])
 		if err != nil {
-			m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
-			m.output.WriteString("\n\n")
+			m.writeError(err.Error())
 			break
 		}
 		m.bannerStyle = newStyle
@@ -531,8 +544,7 @@ func (m ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 
 	case "settings banner get":
 		if m.BannerCycle == nil {
-			m.output.WriteString(shellErrorStyle.Render("  ✗ banner not available"))
-			m.output.WriteString("\n\n")
+			m.writeError("banner not available")
 			break
 		}
 		m.output.WriteString(fmt.Sprintf("  Current banner style: %s\n\n",
@@ -546,22 +558,18 @@ func (m ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 		m.output.WriteString("\n")
 
 	case "bp toggle":
-		if len(args) == 0 {
-			m.output.WriteString(shellErrorStyle.Render("  ✗ Usage: bp toggle <name|#>"))
-			m.output.WriteString("\n\n")
-			break
+		if resolved, ok := m.requireResolved(args, "bp toggle <name|#>"); ok {
+			m.execBpToggle(resolved)
 		}
-		resolved, err := resolveNameOrNumber(args[0], m.lastItems)
-		if err != nil {
-			m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %s", err)))
-			m.output.WriteString("\n\n")
-			break
-		}
-		m.execBpToggle(resolved)
 
 	default:
-		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ Unknown command: %s", cmd)))
-		m.output.WriteString("\n")
+		// Redirect old "banner" commands to "settings banner".
+		if cmd == "banner" || strings.HasPrefix(cmd, "banner ") {
+			m.output.WriteString(shellDimStyle.Render("  Banner moved to: settings banner set|get|list"))
+			m.output.WriteString("\n\n")
+			break
+		}
+		m.writeError(fmt.Sprintf("Unknown command: %s", cmd))
 		m.output.WriteString(shellDimStyle.Render("  Type help for available commands."))
 		m.output.WriteString("\n\n")
 	}
@@ -570,7 +578,7 @@ func (m ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 }
 
 // View renders the full screen: prompt always at top, blank line, then content.
-func (m ShellModel) View() string {
+func (m *ShellModel) View() string {
 	if m.quitting {
 		return ""
 	}
@@ -591,20 +599,3 @@ func (m ShellModel) View() string {
 	}
 }
 
-// batchNonNil batches commands, filtering out nils.
-func batchNonNil(cmds ...tea.Cmd) tea.Cmd {
-	var live []tea.Cmd
-	for _, c := range cmds {
-		if c != nil {
-			live = append(live, c)
-		}
-	}
-	switch len(live) {
-	case 0:
-		return nil
-	case 1:
-		return live[0]
-	default:
-		return tea.Batch(live...)
-	}
-}

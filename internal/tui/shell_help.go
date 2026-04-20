@@ -28,9 +28,9 @@ var helpEntries = []helpEntry{
 	{"📐", "bp list", "", func(b client.DetectedBackend) string { return "List Blueprint entries" }, "Blueprint"},
 	{"📐", "bp remove", "<name|#>", func(b client.DetectedBackend) string { return "Remove Blueprint entry" }, "Blueprint"},
 	{"📐", "bp toggle", "<name|#>", func(b client.DetectedBackend) string { return "Enable/disable entry" }, "Blueprint"},
-	{"🎨", "banner set", "<flame|classic|plain>", func(b client.DetectedBackend) string { return "Set banner style" }, "Shell"},
-	{"🎨", "banner get", "", func(b client.DetectedBackend) string { return "Show current style" }, "Shell"},
-	{"🎨", "banner list", "", func(b client.DetectedBackend) string { return "List available styles" }, "Shell"},
+	{"🎨", "settings banner set", "<flame|classic|plain>", func(b client.DetectedBackend) string { return "Set banner style" }, "Settings"},
+	{"🔍", "settings banner get", "", func(b client.DetectedBackend) string { return "Show current style" }, "Settings"},
+	{"📋", "settings banner list", "", func(b client.DetectedBackend) string { return "List available styles" }, "Settings"},
 	{"❓", "help", "", func(b client.DetectedBackend) string { return "Show this help" }, "Shell"},
 	{"👋", "exit", "", func(b client.DetectedBackend) string { return "Exit the shell" }, "Shell"},
 }
@@ -55,7 +55,7 @@ func renderHelp(backend client.DetectedBackend) string {
 	var b strings.Builder
 	b.WriteString("\n")
 
-	groupOrder := []string{"Live", "Layouts", "Templates", "Blueprint", "Shell"}
+	groupOrder := []string{"Live", "Layouts", "Templates", "Blueprint", "Settings", "Shell"}
 
 	for _, group := range groupOrder {
 		b.WriteString("  ")

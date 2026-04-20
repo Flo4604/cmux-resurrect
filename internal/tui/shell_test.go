@@ -25,15 +25,15 @@ func TestShellModel_StartsInPromptMode(t *testing.T) {
 	}
 }
 
-func TestShellModel_ViewOnlyShowsPrompt(t *testing.T) {
+func TestShellModel_ViewShowsPromptAndWelcome(t *testing.T) {
 	m := NewShellModel(nil, nil, client.BackendGhostty, "")
 	view := m.View()
-	if !strings.Contains(view, "crex❯") {
-		t.Error("view should show the prompt")
+	if !strings.Contains(view, "crex") {
+		t.Error("view should show the prompt with crex")
 	}
-	// View should NOT contain welcome (that's printed via Init)
-	if strings.Contains(view, "interactive shell") {
-		t.Error("view should not contain welcome text (printed via tea.Println)")
+	// Welcome is rendered as part of lastOutput in alt screen mode.
+	if !strings.Contains(view, "interactive shell") {
+		t.Error("view should contain welcome text in lastOutput")
 	}
 }
 
@@ -56,17 +56,13 @@ func TestShellModel_HelpProducesOutput(t *testing.T) {
 	m := NewShellModel(nil, nil, client.BackendGhostty, "")
 	m.prompt.SetValue("help")
 
-	result, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	sm := result.(ShellModel)
 
-	// Output is flushed via tea.Println cmd, not in View
-	if cmd == nil {
-		t.Error("expected tea.Println command for help output")
-	}
-	// View should only show prompt, not help content
+	// Help output is flushed into lastOutput and rendered in View().
 	view := sm.View()
-	if strings.Contains(view, "Layouts") {
-		t.Error("help content should be printed via tea.Println, not in View()")
+	if !strings.Contains(view, "Layouts") {
+		t.Error("help content should appear in View() via lastOutput")
 	}
 }
 
@@ -74,11 +70,12 @@ func TestShellModel_UnknownCommand(t *testing.T) {
 	m := NewShellModel(nil, nil, client.BackendGhostty, "")
 	m.prompt.SetValue("wat")
 
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	sm := result.(ShellModel)
 
-	// Unknown command output is flushed via tea.Println
-	if cmd == nil {
-		t.Error("expected tea.Println command for error output")
+	// Unknown command error is flushed into lastOutput.
+	if !strings.Contains(sm.lastOutput, "Unknown command") {
+		t.Error("expected unknown command error in lastOutput")
 	}
 }
 

@@ -24,8 +24,21 @@ func parseCommand(input string) (cmd string, args []string) {
 		parts[0] = "bp"
 	}
 
-	// Handle two-word commands: "bp add", "banner set", etc.
-	twoWord := map[string]bool{"bp": true, "banner": true}
+	// Handle three-word commands: "settings banner set", etc.
+	threeWordGroups := map[string]bool{"settings banner": true}
+	if len(parts) >= 2 {
+		group := parts[0] + " " + parts[1]
+		if threeWordGroups[group] && len(parts) >= 3 {
+			cmd = group + " " + parts[2]
+			if len(parts) > 3 {
+				args = parts[3:]
+			}
+			return cmd, args
+		}
+	}
+
+	// Handle two-word commands: "bp add", "settings banner", etc.
+	twoWord := map[string]bool{"bp": true, "settings": true}
 	if twoWord[parts[0]] && len(parts) >= 2 {
 		cmd = parts[0] + " " + parts[1]
 		if len(parts) > 2 {

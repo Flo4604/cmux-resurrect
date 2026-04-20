@@ -101,15 +101,17 @@ async function shot(page, name) {
 
 // --- Main ---
 
+let browser;
+
 (async () => {
   fs.mkdirSync(SHOT_DIR, { recursive: true });
 
-  const browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
 
   console.log(JSON.stringify({ event: 'start', url: TTYD_URL }));
 
-  await page.goto(TTYD_URL);
+  await page.goto(TTYD_URL, { timeout: 10000 });
   await sleep(3000); // wait for xterm.js + crex init
 
   const tests = TESTS.filter(t => !caseFilter || caseFilter.has(t.id));
@@ -132,6 +134,7 @@ async function shot(page, name) {
       id: t.id,
       name: t.name,
       screenshot: `screenshots/${screenshotName}`,
+      input: t.input,
       expected: t.expected,
       status: 'captured',
     });
@@ -141,6 +144,7 @@ async function shot(page, name) {
 
   const report = {
     timestamp: new Date().toISOString(),
+    binary: '/tmp/crex-e2e/crex-test',
     port,
     testCount: results.length,
     tests: results,
@@ -150,7 +154,8 @@ async function shot(page, name) {
   console.log(JSON.stringify({ event: 'done', testCount: results.length, reportPath: path.join(OUT_DIR, 'report.json') }));
 
   await browser.close();
-})().catch(err => {
-  console.error(JSON.stringify({ event: 'error', message: err.message }));
+})().catch(async err => {
+  console.error(JSON.stringify({ event: 'error', message: err.message, stack: err.stack }));
+  if (browser) await browser.close().catch(() => {});
   process.exit(1);
 });

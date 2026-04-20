@@ -1,8 +1,8 @@
 ---
-description: Run E2E visual tests against the crex TUI via ttyd + Playwright. Inspects 26 test cases, reports issues, and fixes them.
+description: Run E2E visual tests against the crex TUI via ttyd + Playwright. Inspects 27 test cases, reports issues, and fixes them.
 ---
 
-Run the full E2E TUI test suite. This builds crex, starts ttyd, drives 26 test cases via Playwright, inspects every screenshot visually, and fixes any issues found.
+Run the full E2E TUI test suite. This builds crex, starts ttyd, drives 27 test cases via Playwright, inspects every screenshot visually, and fixes any issues found.
 
 ## Prerequisites
 
@@ -36,7 +36,7 @@ Wait 2 seconds, then verify with `curl -s -o /dev/null -w "%{http_code}" http://
 node scripts/e2e-tui-runner.js
 ```
 
-This produces `/tmp/crex-e2e/report.json` and 26 screenshots in `/tmp/crex-e2e/screenshots/`.
+This produces `/tmp/crex-e2e/report.json` and 27 screenshots in `/tmp/crex-e2e/screenshots/`.
 
 ### 4. Read and inspect every screenshot
 
@@ -53,8 +53,8 @@ For each screenshot, check:
 
 ### 5. Report or fix
 
-**If all 26 screenshots pass inspection:**
-Report: "All 26 E2E cases clean. No visual issues found."
+**If all 27 screenshots pass inspection:**
+Report: "All 27 E2E cases clean. No visual issues found."
 
 **If issues are found:**
 For each issue:

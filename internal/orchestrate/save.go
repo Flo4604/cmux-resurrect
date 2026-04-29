@@ -87,9 +87,10 @@ func (s *Saver) buildWorkspace(tw client.TreeWorkspace) (*model.Workspace, error
 
 	for i, tp := range panes {
 		pane := model.Pane{
-			Type:  "terminal",
-			Focus: tp.Focused,
-			Index: tp.Index,
+			Type:        "terminal",
+			Focus:       tp.Focused,
+			Index:       tp.Index,
+			FocusTarget: -1, // no refocus needed for saved layouts
 		}
 
 		// First pane has no split direction; subsequent default to "right".

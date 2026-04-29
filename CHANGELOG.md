@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.6.2] — 2026-04-29
+
+### Fixed
+- **Restore pane focus** — saved layouts left `FocusTarget` at Go's zero value, causing `cmux focus-pane --pane pane:0` errors during restore of multi-pane workspaces
+
+---
+
 ## [v1.6.1] — 2026-04-20
 
 ### Fixed
@@ -229,6 +236,7 @@ Initial public release.
 [v1.5.1]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.5.1
 [v1.5.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.5.0
 [v1.4.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.4.0
+[v1.6.2]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.6.2
 [v1.3.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.3.0
 [v1.2.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.2.0
 [v1.1.1]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.1.1

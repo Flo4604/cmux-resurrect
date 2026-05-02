@@ -39,10 +39,25 @@ type RestoreResult struct {
 }
 
 // Restore loads a layout and recreates it in cmux.
-func (r *Restorer) Restore(name string, dryRun bool, mode RestoreMode) (*RestoreResult, error) {
+// When workspaceFilter is non-empty, only the workspace matching that title is restored.
+func (r *Restorer) Restore(name string, dryRun bool, mode RestoreMode, workspaceFilter string) (*RestoreResult, error) {
 	layout, err := r.Store.Load(name)
 	if err != nil {
 		return nil, fmt.Errorf("load layout: %w", err)
+	}
+
+	if workspaceFilter != "" {
+		var filtered []model.Workspace
+		for _, ws := range layout.Workspaces {
+			if ws.Title == workspaceFilter {
+				filtered = append(filtered, ws)
+				break
+			}
+		}
+		if len(filtered) == 0 {
+			return nil, fmt.Errorf("workspace %q not found in layout %q", workspaceFilter, name)
+		}
+		layout.Workspaces = filtered
 	}
 
 	if !dryRun {

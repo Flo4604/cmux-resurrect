@@ -161,7 +161,7 @@ func (m *ShellModel) execRestore(name string) tea.Cmd {
 			Client: cl,
 			Store:  store,
 		}
-		result, err := restorer.Restore(name, false, orchestrate.RestoreModeAdd)
+		result, err := restorer.Restore(name, false, orchestrate.RestoreModeAdd, "")
 		return restoreResultMsg{result: result, err: err}
 	}
 }

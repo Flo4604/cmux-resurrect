@@ -119,7 +119,7 @@ func (bm BrowseModel) Update(msg tea.KeyMsg) (BrowseModel, tea.Cmd) {
 		}
 		return bm, nil
 
-	case tea.KeyRight:
+	case tea.KeyRight, tea.KeyTab:
 		if bm.action == "restore" && len(bm.visible) > 0 {
 			bm.drillIn()
 		}
@@ -303,11 +303,12 @@ func (bm BrowseModel) View() string {
 	} else {
 		hint := fmt.Sprintf("  ↑/↓ select · ↵ %s · / filter · q back", bm.action)
 		if bm.action == "restore" {
-			hint = "  ↑/↓ select · ↵ restore · → pick workspace · / filter · esc cancel"
+			hint = "  ↑/↓ select · ↵ restore · →/tab pick workspace · / filter · esc cancel"
 		}
 		b.WriteString(shellDimStyle.Render(hint))
 		b.WriteString("\n")
 	}
+	b.WriteString("\n")
 
 	return b.String()
 }

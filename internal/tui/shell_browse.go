@@ -176,10 +176,7 @@ func (bm BrowseModel) updateDetail(msg tea.KeyMsg) (BrowseModel, tea.Cmd) {
 			bm.cursor--
 		}
 		return bm, nil
-	case tea.KeyLeft:
-		bm.drillOut()
-		return bm, nil
-	case tea.KeyEsc:
+	case tea.KeyLeft, tea.KeyEsc, tea.KeyShiftTab:
 		bm.drillOut()
 		return bm, nil
 	case tea.KeyEnter:
@@ -308,7 +305,7 @@ func (bm BrowseModel) View() string {
 		b.WriteString(shellDimStyle.Render(hint))
 		b.WriteString("\n")
 	}
-	b.WriteString("\n")
+	b.WriteString(" \n")
 
 	return b.String()
 }

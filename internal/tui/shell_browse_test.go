@@ -133,3 +133,101 @@ func TestBrowseModel_View_ContainsCursor(t *testing.T) {
 		t.Error("browse view should contain numbered index [1]")
 	}
 }
+
+func TestBrowseModel_RightDrillsIntoDetail(t *testing.T) {
+	items := []Item{
+		{Kind: KindLayout, Name: "layout-a", SubItems: []Item{
+			{Kind: KindWorkspace, Name: "ws1"},
+			{Kind: KindWorkspace, Name: "ws2"},
+		}},
+	}
+	bm := NewBrowseModel(items, "restore")
+	bm, _ = bm.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if !bm.inDetail {
+		t.Error("expected inDetail=true after right arrow")
+	}
+	if len(bm.visible) != 3 {
+		t.Fatalf("visible items = %d, want 3 (all + 2 workspaces)", len(bm.visible))
+	}
+	if bm.visible[0].Kind != KindAllWs {
+		t.Errorf("first item should be KindAllWs, got %v", bm.visible[0].Kind)
+	}
+}
+
+func TestBrowseModel_LeftReturnsFromDetail(t *testing.T) {
+	items := []Item{
+		{Kind: KindLayout, Name: "layout-a", SubItems: []Item{{Kind: KindWorkspace, Name: "ws1"}}},
+		{Kind: KindLayout, Name: "layout-b", SubItems: []Item{{Kind: KindWorkspace, Name: "ws2"}}},
+	}
+	bm := NewBrowseModel(items, "restore")
+	bm, _ = bm.Update(tea.KeyMsg{Type: tea.KeyDown})
+	bm, _ = bm.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if !bm.inDetail {
+		t.Error("expected inDetail=true")
+	}
+	bm, _ = bm.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	if bm.inDetail {
+		t.Error("expected inDetail=false after left arrow")
+	}
+	if bm.cursor != 1 {
+		t.Errorf("cursor = %d, want 1 (restored position)", bm.cursor)
+	}
+}
+
+func TestBrowseModel_EnterInDetail_Selects(t *testing.T) {
+	items := []Item{
+		{Kind: KindLayout, Name: "layout-a", Workspaces: 2, SubItems: []Item{
+			{Kind: KindWorkspace, Name: "ws1"},
+			{Kind: KindWorkspace, Name: "ws2"},
+		}},
+	}
+	bm := NewBrowseModel(items, "restore")
+	bm, _ = bm.Update(tea.KeyMsg{Type: tea.KeyRight})
+	bm, _ = bm.Update(tea.KeyMsg{Type: tea.KeyDown})
+	bm, _ = bm.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if !bm.selected {
+		t.Error("expected selected=true")
+	}
+	if !bm.done {
+		t.Error("expected done=true")
+	}
+	sel := bm.SelectedItem()
+	if sel.Kind != KindWorkspace {
+		t.Errorf("selected kind = %v, want KindWorkspace", sel.Kind)
+	}
+	if sel.Name != "ws1" {
+		t.Errorf("selected name = %q, want %q", sel.Name, "ws1")
+	}
+}
+
+func TestBrowseModel_EnterOnLayout_RestoresAll(t *testing.T) {
+	items := []Item{
+		{Kind: KindLayout, Name: "layout-a", SubItems: []Item{{Kind: KindWorkspace, Name: "ws1"}}},
+	}
+	bm := NewBrowseModel(items, "restore")
+	bm, _ = bm.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if bm.inDetail {
+		t.Error("Enter should NOT drill into detail — it should restore all")
+	}
+	if !bm.selected || !bm.done {
+		t.Error("expected selected+done (restore all workspaces)")
+	}
+}
+
+func TestBrowseModel_EscFromDetail_GoesBack(t *testing.T) {
+	items := []Item{
+		{Kind: KindLayout, Name: "layout-a", SubItems: []Item{{Kind: KindWorkspace, Name: "ws1"}}},
+	}
+	bm := NewBrowseModel(items, "restore")
+	bm, _ = bm.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if !bm.inDetail {
+		t.Error("expected inDetail=true")
+	}
+	bm, _ = bm.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if bm.inDetail {
+		t.Error("Esc should return from detail")
+	}
+	if bm.done {
+		t.Error("Esc from detail should not exit browse entirely")
+	}
+}

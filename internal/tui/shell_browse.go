@@ -18,6 +18,12 @@ type BrowseModel struct {
 	selected    bool
 	done        bool
 	passthrough rune // non-zero if user typed a letter (pass to prompt)
+
+	// Two-level drill-in state (restore action only).
+	inDetail     bool
+	parentItems  []Item
+	parentCursor int
+	layoutName   string
 }
 
 // NewBrowseModel creates a browse model from a list of items.
@@ -29,6 +35,48 @@ func NewBrowseModel(items []Item, action string) BrowseModel {
 		visible: vis,
 		action:  action,
 	}
+}
+
+// drillIn enters the detail view for the currently selected layout item.
+func (bm *BrowseModel) drillIn() {
+	if bm.cursor >= len(bm.visible) {
+		return
+	}
+	item := bm.visible[bm.cursor]
+	if len(item.SubItems) == 0 {
+		return
+	}
+
+	bm.parentItems = bm.visible
+	bm.parentCursor = bm.cursor
+	bm.layoutName = item.Name
+
+	detail := make([]Item, 0, len(item.SubItems)+1)
+	detail = append(detail, Item{
+		Kind:       KindAllWs,
+		Name:       fmt.Sprintf("All workspaces (%d)", len(item.SubItems)),
+		Workspaces: len(item.SubItems),
+	})
+	detail = append(detail, item.SubItems...)
+
+	bm.visible = detail
+	bm.items = detail
+	bm.cursor = 0
+	bm.inDetail = true
+	bm.filtering = false
+	bm.filterText = ""
+}
+
+// drillOut returns from the detail view to the parent layout list.
+func (bm *BrowseModel) drillOut() {
+	bm.visible = bm.parentItems
+	bm.items = bm.parentItems
+	bm.cursor = bm.parentCursor
+	bm.inDetail = false
+	bm.layoutName = ""
+	bm.parentItems = nil
+	bm.filtering = false
+	bm.filterText = ""
 }
 
 // SelectedItem returns the currently selected item.
@@ -45,6 +93,10 @@ func (bm BrowseModel) Update(msg tea.KeyMsg) (BrowseModel, tea.Cmd) {
 		return bm.updateFilter(msg)
 	}
 
+	if bm.inDetail {
+		return bm.updateDetail(msg)
+	}
+
 	switch msg.Type {
 	case tea.KeyDown:
 		if bm.cursor < len(bm.visible)-1 {
@@ -55,6 +107,12 @@ func (bm BrowseModel) Update(msg tea.KeyMsg) (BrowseModel, tea.Cmd) {
 	case tea.KeyUp:
 		if bm.cursor > 0 {
 			bm.cursor--
+		}
+		return bm, nil
+
+	case tea.KeyRight:
+		if bm.action == "restore" && len(bm.visible) > 0 {
+			bm.drillIn()
 		}
 		return bm, nil
 
@@ -82,6 +140,52 @@ func (bm BrowseModel) Update(msg tea.KeyMsg) (BrowseModel, tea.Cmd) {
 				return bm, nil
 			default:
 				bm.done = true
+				bm.passthrough = r
+				return bm, nil
+			}
+		}
+	}
+	return bm, nil
+}
+
+// updateDetail processes key events when in the detail (workspace picker) view.
+func (bm BrowseModel) updateDetail(msg tea.KeyMsg) (BrowseModel, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyDown:
+		if bm.cursor < len(bm.visible)-1 {
+			bm.cursor++
+		}
+		return bm, nil
+	case tea.KeyUp:
+		if bm.cursor > 0 {
+			bm.cursor--
+		}
+		return bm, nil
+	case tea.KeyLeft:
+		bm.drillOut()
+		return bm, nil
+	case tea.KeyEsc:
+		bm.drillOut()
+		return bm, nil
+	case tea.KeyEnter:
+		if len(bm.visible) > 0 {
+			bm.selected = true
+			bm.done = true
+		}
+		return bm, nil
+	case tea.KeyRunes:
+		if len(msg.Runes) == 1 {
+			r := msg.Runes[0]
+			switch r {
+			case 'q':
+				bm.drillOut()
+				return bm, nil
+			case '/':
+				bm.filtering = true
+				bm.filterText = ""
+				return bm, nil
+			default:
+				bm.drillOut()
 				bm.passthrough = r
 				return bm, nil
 			}
@@ -162,12 +266,35 @@ func (bm BrowseModel) View() string {
 		b.WriteString("\n")
 	}
 
+	if !bm.inDetail && bm.action == "restore" && bm.cursor < len(bm.visible) {
+		item := bm.visible[bm.cursor]
+		if len(item.SubItems) > 0 {
+			b.WriteString("\n")
+			fmt.Fprintf(&b, "  %s\n", shellDimStyle.Render(fmt.Sprintf("Workspaces in %q:", item.Name)))
+			for _, ws := range item.SubItems {
+				desc := ws.Desc()
+				if desc != "" {
+					fmt.Fprintf(&b, "    %s  %s\n", ws.Name, shellDimStyle.Render("("+desc+")"))
+				} else {
+					fmt.Fprintf(&b, "    %s\n", ws.Name)
+				}
+			}
+		}
+	}
+
 	if bm.filtering {
 		fmt.Fprintf(&b, "  / %s", bm.filterText)
 		b.WriteString(shellDimStyle.Render("▌"))
 		b.WriteString("\n")
+	} else if bm.inDetail {
+		hint := "  ↑/↓ select · ↵ restore · / filter · ←/esc back"
+		b.WriteString(shellDimStyle.Render(hint))
+		b.WriteString("\n")
 	} else {
 		hint := fmt.Sprintf("  ↑/↓ select · ↵ %s · / filter · q back", bm.action)
+		if bm.action == "restore" {
+			hint = "  ↑/↓ select · ↵ restore · → pick workspace · / filter · esc cancel"
+		}
 		b.WriteString(shellDimStyle.Render(hint))
 		b.WriteString("\n")
 	}

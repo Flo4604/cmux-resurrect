@@ -266,6 +266,74 @@ func TestFileStore_SaveFilePermissions(t *testing.T) {
 	}
 }
 
+func TestFileStore_List_WorkspaceDetails(t *testing.T) {
+	dir := t.TempDir()
+	store, err := NewFileStore(dir)
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+
+	layout := &model.Layout{
+		Name:    "details",
+		Version: 1,
+		SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{
+				Title: "0 dev",
+				CWD:   "/tmp/dev",
+				Panes: []model.Pane{
+					{Type: "terminal"},
+				},
+			},
+			{
+				Title: "1 docs",
+				CWD:   "/tmp/docs",
+				Panes: []model.Pane{
+					{Type: "terminal"},
+					{Type: "terminal", Split: "right"},
+				},
+			},
+		},
+	}
+
+	if err := store.Save("details", layout); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	metas, err := store.List()
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(metas) != 1 {
+		t.Fatalf("expected 1 meta, got %d", len(metas))
+	}
+
+	m := metas[0]
+	if m.WorkspaceCount != 2 {
+		t.Errorf("WorkspaceCount = %d, want 2", m.WorkspaceCount)
+	}
+
+	if len(m.WorkspaceTitles) != 2 {
+		t.Fatalf("WorkspaceTitles len = %d, want 2", len(m.WorkspaceTitles))
+	}
+	if m.WorkspaceTitles[0] != "0 dev" {
+		t.Errorf("WorkspaceTitles[0] = %q, want %q", m.WorkspaceTitles[0], "0 dev")
+	}
+	if m.WorkspaceTitles[1] != "1 docs" {
+		t.Errorf("WorkspaceTitles[1] = %q, want %q", m.WorkspaceTitles[1], "1 docs")
+	}
+
+	if len(m.WorkspacePanes) != 2 {
+		t.Fatalf("WorkspacePanes len = %d, want 2", len(m.WorkspacePanes))
+	}
+	if m.WorkspacePanes[0] != 1 {
+		t.Errorf("WorkspacePanes[0] = %d, want 1", m.WorkspacePanes[0])
+	}
+	if m.WorkspacePanes[1] != 2 {
+		t.Errorf("WorkspacePanes[1] = %d, want 2", m.WorkspacePanes[1])
+	}
+}
+
 func TestFileStore_LoadWithSplits(t *testing.T) {
 	store := &FileStore{Dir: "../../testdata/layouts"}
 

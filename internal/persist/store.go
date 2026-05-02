@@ -136,12 +136,20 @@ func (s *FileStore) List() ([]model.LayoutMeta, error) {
 		if err != nil {
 			continue // skip corrupt files
 		}
+		titles := make([]string, len(layout.Workspaces))
+		panes := make([]int, len(layout.Workspaces))
+		for i, ws := range layout.Workspaces {
+			titles[i] = ws.Title
+			panes[i] = len(ws.Panes)
+		}
 		metas = append(metas, model.LayoutMeta{
-			Name:           layout.Name,
-			Description:    layout.Description,
-			SavedAt:        layout.SavedAt,
-			WorkspaceCount: len(layout.Workspaces),
-			FilePath:       s.Path(name),
+			Name:            layout.Name,
+			Description:     layout.Description,
+			SavedAt:         layout.SavedAt,
+			WorkspaceCount:  len(layout.Workspaces),
+			WorkspaceTitles: titles,
+			WorkspacePanes:  panes,
+			FilePath:        s.Path(name),
 		})
 	}
 	sort.Slice(metas, func(i, j int) bool {

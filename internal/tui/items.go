@@ -12,6 +12,8 @@ type ItemKind int
 const (
 	KindLayout ItemKind = iota
 	KindTemplate
+	KindWorkspace
+	KindAllWs
 )
 
 // Item is a single entry in the TUI list, representing either a saved layout
@@ -23,6 +25,7 @@ type Item struct {
 	Workspaces  int
 	Icon        string
 	Category    string
+	SubItems    []Item
 }
 
 // FilterValue returns the string used for fuzzy filtering.
@@ -43,24 +46,46 @@ func (i Item) Title() string {
 // Desc returns the subtitle shown below the title in the list.
 // Layouts show the workspace count and description; templates show description only.
 func (i Item) Desc() string {
-	if i.Kind == KindLayout {
+	switch i.Kind {
+	case KindLayout:
 		if i.Description != "" {
 			return fmt.Sprintf("%d workspaces — %s", i.Workspaces, i.Description)
 		}
 		return fmt.Sprintf("%d workspaces", i.Workspaces)
+	case KindWorkspace:
+		if i.Workspaces == 1 {
+			return "1 pane"
+		}
+		return fmt.Sprintf("%d panes", i.Workspaces)
+	case KindAllWs:
+		return ""
+	default:
+		return i.Description
 	}
-	return i.Description
 }
 
 // ItemsFromLayouts converts a slice of LayoutMeta into TUI Items.
 func ItemsFromLayouts(metas []model.LayoutMeta) []Item {
 	items := make([]Item, len(metas))
 	for idx, m := range metas {
+		var subItems []Item
+		for i, title := range m.WorkspaceTitles {
+			panes := 0
+			if i < len(m.WorkspacePanes) {
+				panes = m.WorkspacePanes[i]
+			}
+			subItems = append(subItems, Item{
+				Kind:       KindWorkspace,
+				Name:       title,
+				Workspaces: panes,
+			})
+		}
 		items[idx] = Item{
 			Kind:        KindLayout,
 			Name:        m.Name,
 			Description: m.Description,
 			Workspaces:  m.WorkspaceCount,
+			SubItems:    subItems,
 		}
 	}
 	return items

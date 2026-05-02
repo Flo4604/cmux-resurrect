@@ -44,7 +44,7 @@ func TestRestore_DryRun(t *testing.T) {
 	mc := &mockClient{sidebarCWDs: map[string]string{}}
 	restorer := &Restorer{Client: mc, Store: store}
 
-	result, err := restorer.Restore("dry-test", true, RestoreModeAdd)
+	result, err := restorer.Restore("dry-test", true, RestoreModeAdd, "")
 	if err != nil {
 		t.Fatalf("restore dry-run: %v", err)
 	}
@@ -108,9 +108,75 @@ func TestRestore_LayoutNotFound(t *testing.T) {
 	mc := &mockClient{}
 
 	restorer := &Restorer{Client: mc, Store: store}
-	_, err := restorer.Restore("nonexistent", false, RestoreModeAdd)
+	_, err := restorer.Restore("nonexistent", false, RestoreModeAdd, "")
 	if err == nil {
 		t.Error("expected error for nonexistent layout")
+	}
+}
+
+func TestRestore_WorkspaceFilter(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := persist.NewFileStore(dir)
+
+	layout := &model.Layout{
+		Name: "filter-test", Version: 1, SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{Title: "0 dev", CWD: "/tmp/dev", Index: 0, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+			{Title: "1 docs", CWD: "/tmp/docs", Index: 1, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+			{Title: "2 tests", CWD: "/tmp/tests", Index: 2, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+		},
+	}
+	_ = store.Save("filter-test", layout)
+
+	mc := &mockClient{sidebarCWDs: map[string]string{}}
+	restorer := &Restorer{Client: mc, Store: store}
+
+	result, err := restorer.Restore("filter-test", true, RestoreModeAdd, "1 docs")
+	if err != nil {
+		t.Fatalf("restore with filter: %v", err)
+	}
+	if result.WorkspacesTotal != 1 {
+		t.Errorf("WorkspacesTotal = %d, want 1", result.WorkspacesTotal)
+	}
+	if result.WorkspacesOK != 1 {
+		t.Errorf("WorkspacesOK = %d, want 1", result.WorkspacesOK)
+	}
+	hasTarget := false
+	for _, cmd := range result.Commands {
+		if containsStr(cmd, "1 docs") {
+			hasTarget = true
+		}
+		if containsStr(cmd, "0 dev") || containsStr(cmd, "2 tests") {
+			t.Errorf("filtered workspace should not appear: %s", cmd)
+		}
+	}
+	if !hasTarget {
+		t.Error("expected commands for '1 docs' workspace")
+	}
+}
+
+func TestRestore_EmptyFilter_RestoresAll(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := persist.NewFileStore(dir)
+
+	layout := &model.Layout{
+		Name: "all-test", Version: 1, SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{Title: "0 dev", CWD: "/tmp", Index: 0, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+			{Title: "1 docs", CWD: "/tmp", Index: 1, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+		},
+	}
+	_ = store.Save("all-test", layout)
+
+	mc := &mockClient{sidebarCWDs: map[string]string{}}
+	restorer := &Restorer{Client: mc, Store: store}
+
+	result, err := restorer.Restore("all-test", true, RestoreModeAdd, "")
+	if err != nil {
+		t.Fatalf("restore all: %v", err)
+	}
+	if result.WorkspacesTotal != 2 {
+		t.Errorf("WorkspacesTotal = %d, want 2", result.WorkspacesTotal)
 	}
 }
 

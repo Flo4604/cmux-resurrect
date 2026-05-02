@@ -118,7 +118,7 @@ func runRestore(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "%s %s\n", yellowStyle.Render(action), greenStyle.Render(name))
 	}
 
-	result, err := restorer.Restore(name, restoreDryRun, mode)
+	result, err := restorer.Restore(name, restoreDryRun, mode, "")
 	if err != nil {
 		return err
 	}

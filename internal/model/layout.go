@@ -36,9 +36,11 @@ type Pane struct {
 
 // LayoutMeta holds summary info about a saved layout (for list command).
 type LayoutMeta struct {
-	Name           string
-	Description    string
-	SavedAt        time.Time
-	WorkspaceCount int
-	FilePath       string
+	Name            string
+	Description     string
+	SavedAt         time.Time
+	WorkspaceCount  int
+	WorkspaceTitles []string
+	WorkspacePanes  []int
+	FilePath        string
 }

@@ -16,6 +16,7 @@ type Config struct {
 	WatchIntervalStr string        `toml:"watch_interval"`
 	MaxAutosaves     int           `toml:"max_autosaves"` // TODO: not yet enforced — rotation not implemented
 	BannerStyle      string        `toml:"banner_style"`  // "flame" (default), "classic", "plain"
+	RestoreMode      string        `toml:"restore_mode"`  // "ask" (default when empty), "replace", "add"
 }
 
 // DefaultConfig returns the default configuration.

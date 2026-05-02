@@ -99,10 +99,17 @@ func runRestore(cmd *cobra.Command, args []string) error {
 		// Dry-run without explicit --mode defaults to "add" (non-destructive preview).
 		mode = orchestrate.RestoreModeAdd
 	default:
-		// Interactive prompt.
-		mode, err = askRestoreMode()
-		if err != nil {
-			return err
+		switch cfg.RestoreMode {
+		case "replace":
+			mode = orchestrate.RestoreModeReplace
+		case "add":
+			mode = orchestrate.RestoreModeAdd
+		default:
+			// Interactive prompt.
+			mode, err = askRestoreMode()
+			if err != nil {
+				return err
+			}
 		}
 	}
 

@@ -1,21 +1,16 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/drolosoft/cmux-resurrect/internal/orchestrate"
 	"github.com/spf13/cobra"
 )
 
 var restoreDryRun bool
 var restoreMode string
-
-// errGoBack signals the user wants to return to the layout picker.
-var errGoBack = errors.New("go back")
 
 var restoreCmd = &cobra.Command{
 	Use:   "restore [name]",
@@ -41,12 +36,11 @@ func init() {
 func runRestore(cmd *cobra.Command, args []string) error {
 	var name string
 	var workspaceFilter string
-	var earlyMode orchestrate.RestoreMode
-	var earlyModeSet bool
+	var pickerMode orchestrate.RestoreMode
+	var pickerModeSet bool
 	if len(args) == 1 {
 		name = args[0]
 	} else {
-		// Interactive picker with retry loop (user can go back from mode prompt).
 		store, err := newStore()
 		if err != nil {
 			return err
@@ -59,27 +53,17 @@ func runRestore(cmd *cobra.Command, args []string) error {
 			fmt.Fprintln(os.Stderr, dimStyle.Render("  No saved layouts. Use 'crex save <name>' to create one."))
 			return nil
 		}
-		for {
-			pick, err := pickLayout(metas)
-			if err != nil {
-				return err
-			}
-			name = pick.Layout
-			workspaceFilter = pick.Workspace
-
-			// If mode needs interactive prompt, ask now so user can go back.
-			if restoreMode == "" && !restoreDryRun && cfg.RestoreMode == "" {
-				m, err := askRestoreMode()
-				if errors.Is(err, errGoBack) {
-					continue // back to picker
-				}
-				if err != nil {
-					return err
-				}
-				earlyMode = m
-				earlyModeSet = true
-			}
-			break
+		// Skip the mode step inside the picker if it's already determined.
+		skipMode := restoreMode != "" || restoreDryRun || cfg.RestoreMode != ""
+		pick, err := pickLayout(metas, skipMode)
+		if err != nil {
+			return err
+		}
+		name = pick.Layout
+		workspaceFilter = pick.Workspace
+		if !skipMode {
+			pickerMode = pick.Mode
+			pickerModeSet = true
 		}
 	}
 
@@ -121,19 +105,14 @@ func runRestore(cmd *cobra.Command, args []string) error {
 		mode = orchestrate.RestoreModeAdd
 	case restoreDryRun:
 		mode = orchestrate.RestoreModeAdd
-	case earlyModeSet:
-		mode = earlyMode
+	case pickerModeSet:
+		mode = pickerMode
 	default:
 		switch cfg.RestoreMode {
 		case "replace":
 			mode = orchestrate.RestoreModeReplace
 		case "add":
 			mode = orchestrate.RestoreModeAdd
-		default:
-			mode, err = askRestoreMode()
-			if err != nil {
-				return err
-			}
 		}
 	}
 
@@ -208,102 +187,3 @@ func countBlanks(cmds []string) int {
 	return n
 }
 
-// modePickerModel is a Bubble Tea model for the replace/add prompt.
-type modePickerModel struct {
-	cursor int // 0 = replace, 1 = add
-	done   bool
-	back   bool
-}
-
-func (m modePickerModel) Init() tea.Cmd { return nil }
-
-func (m modePickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyEsc:
-			m.back = true
-			m.done = true
-			return m, tea.Quit
-		case tea.KeyCtrlC:
-			m.done = true
-			return m, tea.Quit
-		case tea.KeyUp:
-			if m.cursor > 0 {
-				m.cursor--
-			}
-			return m, nil
-		case tea.KeyDown:
-			if m.cursor < 1 {
-				m.cursor++
-			}
-			return m, nil
-		case tea.KeyEnter:
-			m.done = true
-			return m, tea.Quit
-		case tea.KeyRunes:
-			if len(msg.Runes) == 1 {
-				switch msg.Runes[0] {
-				case 'r', 'R':
-					m.cursor = 0
-					m.done = true
-					return m, tea.Quit
-				case 'a', 'A':
-					m.cursor = 1
-					m.done = true
-					return m, tea.Quit
-				case 'q':
-					m.back = true
-					m.done = true
-					return m, tea.Quit
-				}
-			}
-		}
-	}
-	return m, nil
-}
-
-func (m modePickerModel) View() string {
-	var b strings.Builder
-	b.WriteString("\n")
-	b.WriteString(headingStyle.Render("How do you want to restore?"))
-	b.WriteString("\n")
-
-	labels := []string{
-		fmt.Sprintf("Replace — close all current %s, then restore", unitName(2)),
-		fmt.Sprintf("Add     — keep current %s, add restored ones", unitName(2)),
-	}
-	keys := []string{"r", "a"}
-
-	for i, label := range labels {
-		if i == m.cursor {
-			fmt.Fprintf(&b, "  %s %s  %s\n", greenStyle.Render("▸"), cyanStyle.Render("["+keys[i]+"]"), label)
-		} else {
-			fmt.Fprintf(&b, "    %s  %s\n", cyanStyle.Render("["+keys[i]+"]"), label)
-		}
-	}
-
-	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("  ↑/↓ select · ↵ confirm · esc back"))
-	b.WriteString("\n")
-	return b.String()
-}
-
-// askRestoreMode prompts the user to choose between replacing or adding workspaces.
-func askRestoreMode() (orchestrate.RestoreMode, error) {
-	p := tea.NewProgram(modePickerModel{})
-	finalModel, err := p.Run()
-	if err != nil {
-		return orchestrate.RestoreModeReplace, err
-	}
-
-	m := finalModel.(modePickerModel)
-	if m.back || !m.done {
-		return 0, errGoBack
-	}
-
-	if m.cursor == 1 {
-		return orchestrate.RestoreModeAdd, nil
-	}
-	return orchestrate.RestoreModeReplace, nil
-}

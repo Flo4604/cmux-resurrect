@@ -2,22 +2,53 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/drolosoft/cmux-resurrect/internal/model"
+	"github.com/drolosoft/cmux-resurrect/internal/orchestrate"
 	"github.com/drolosoft/cmux-resurrect/internal/tui"
 )
 
-// PickResult holds the user's selection from the layout picker.
+// PickResult holds the user's selection from the restore picker.
 type PickResult struct {
-	Layout    string // layout name
-	Workspace string // specific workspace title, or empty for all
+	Layout    string
+	Workspace string
+	Mode      orchestrate.RestoreMode
 }
 
-// pickerModel wraps BrowseModel for standalone CLI use.
+type pickerState int
+
+const (
+	stateLayout pickerState = iota
+	stateMode
+)
+
+// pickerModel combines layout selection and mode selection in one Bubble Tea program.
 type pickerModel struct {
-	browse tui.BrowseModel
-	done   bool
+	state    pickerState
+	browse   tui.BrowseModel
+	items    []tui.Item // original items for reset
+	skipMode bool       // true when mode is pre-determined (flag/config)
+
+	// Mode picker state.
+	modeCursor int // 0 = replace, 1 = add
+
+	// Result.
+	cancelled bool
+	layout    string
+	workspace string
+	mode      orchestrate.RestoreMode
+}
+
+func newPickerModel(metas []model.LayoutMeta, skipMode bool) pickerModel {
+	items := tui.ItemsFromLayouts(metas)
+	return pickerModel{
+		state:    stateLayout,
+		browse:   tui.NewBrowseModel(items, "restore"),
+		items:    items,
+		skipMode: skipMode,
+	}
 }
 
 func (m pickerModel) Init() tea.Cmd { return nil }
@@ -26,48 +57,143 @@ func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.Type == tea.KeyCtrlC {
+			m.cancelled = true
 			return m, tea.Quit
 		}
-		m.browse, _ = m.browse.Update(msg)
-		if m.browse.Done() {
-			m.done = true
+		switch m.state {
+		case stateLayout:
+			return m.updateLayout(msg)
+		case stateMode:
+			return m.updateMode(msg)
+		}
+	}
+	return m, nil
+}
+
+func (m pickerModel) updateLayout(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	m.browse, _ = m.browse.Update(msg)
+	if m.browse.Done() {
+		if !m.browse.Selected() {
+			m.cancelled = true
 			return m, tea.Quit
+		}
+
+		// Extract selection.
+		item := m.browse.SelectedItem()
+		m.layout = item.Name
+		m.workspace = ""
+		if item.Kind == tui.KindWorkspace {
+			m.workspace = item.Name
+			m.layout = m.browse.LayoutName()
+		} else if item.Kind == tui.KindAllWs {
+			m.layout = m.browse.LayoutName()
+		}
+
+		if m.skipMode {
+			return m, tea.Quit
+		}
+
+		// Transition to mode picker.
+		m.state = stateMode
+		m.modeCursor = 0
+	}
+	return m, nil
+}
+
+func (m pickerModel) updateMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc, tea.KeyShiftTab, tea.KeyLeft:
+		// Go back to layout picker.
+		m.state = stateLayout
+		m.browse = tui.NewBrowseModel(m.items, "restore")
+		return m, nil
+	case tea.KeyUp:
+		if m.modeCursor > 0 {
+			m.modeCursor--
+		}
+		return m, nil
+	case tea.KeyDown:
+		if m.modeCursor < 1 {
+			m.modeCursor++
+		}
+		return m, nil
+	case tea.KeyEnter:
+		if m.modeCursor == 0 {
+			m.mode = orchestrate.RestoreModeReplace
+		} else {
+			m.mode = orchestrate.RestoreModeAdd
+		}
+		return m, tea.Quit
+	case tea.KeyRunes:
+		if len(msg.Runes) == 1 {
+			switch msg.Runes[0] {
+			case 'r', 'R':
+				m.mode = orchestrate.RestoreModeReplace
+				return m, tea.Quit
+			case 'a', 'A':
+				m.mode = orchestrate.RestoreModeAdd
+				return m, tea.Quit
+			case 'q':
+				m.state = stateLayout
+				m.browse = tui.NewBrowseModel(m.items, "restore")
+				return m, nil
+			}
 		}
 	}
 	return m, nil
 }
 
 func (m pickerModel) View() string {
-	return fmt.Sprintf("  📦 Select a layout to restore\n\n%s", m.browse.View())
+	var b strings.Builder
+
+	switch m.state {
+	case stateLayout:
+		b.WriteString("  📦 Select a layout to restore\n\n")
+		b.WriteString(m.browse.View())
+
+	case stateMode:
+		b.WriteString(headingStyle.Render("How do you want to restore?"))
+		b.WriteString("\n\n")
+
+		labels := []string{
+			fmt.Sprintf("Replace — close all current %s, then restore", unitName(2)),
+			fmt.Sprintf("Add     — keep current %s, add restored ones", unitName(2)),
+		}
+		keys := []string{"r", "a"}
+
+		for i, label := range labels {
+			if i == m.modeCursor {
+				fmt.Fprintf(&b, "  %s %s  %s\n", greenStyle.Render("▸"), cyanStyle.Render("["+keys[i]+"]"), label)
+			} else {
+				fmt.Fprintf(&b, "    %s  %s\n", cyanStyle.Render("["+keys[i]+"]"), label)
+			}
+		}
+
+		b.WriteString("\n")
+		b.WriteString(dimStyle.Render("  ↑/↓ select · ↵ confirm · esc back"))
+		b.WriteString("\n")
+	}
+
+	return b.String()
 }
 
-// pickLayout shows an interactive picker using the same BrowseModel as the TUI.
-// Returns the selected layout name and optional workspace filter.
-func pickLayout(metas []model.LayoutMeta) (*PickResult, error) {
-	items := tui.ItemsFromLayouts(metas)
-	browse := tui.NewBrowseModel(items, "restore")
-
-	p := tea.NewProgram(pickerModel{browse: browse})
+// pickLayout runs the combined layout+mode picker.
+func pickLayout(metas []model.LayoutMeta, skipMode bool) (*PickResult, error) {
+	m := newPickerModel(metas, skipMode)
+	p := tea.NewProgram(m, tea.WithAltScreen())
 	finalModel, err := p.Run()
 	if err != nil {
 		return nil, err
 	}
 
-	m := finalModel.(pickerModel)
-	if !m.done || !m.browse.Selected() {
+	fm := finalModel.(pickerModel)
+	if fm.cancelled {
 		return nil, fmt.Errorf("cancelled")
 	}
 
-	item := m.browse.SelectedItem()
-	result := &PickResult{Layout: item.Name}
-
-	// If user drilled into workspace detail and selected a specific workspace.
-	if item.Kind == tui.KindWorkspace {
-		result.Workspace = item.Name
-		result.Layout = m.browse.LayoutName()
-	} else if item.Kind == tui.KindAllWs {
-		result.Layout = m.browse.LayoutName()
-	}
-
-	return result, nil
+	return &PickResult{
+		Layout:    fm.layout,
+		Workspace: fm.workspace,
+		Mode:      fm.mode,
+	}, nil
 }

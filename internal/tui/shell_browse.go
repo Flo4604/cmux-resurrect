@@ -139,13 +139,19 @@ func (bm BrowseModel) Update(msg tea.KeyMsg) (BrowseModel, tea.Cmd) {
 	case tea.KeyRunes:
 		if len(msg.Runes) == 1 {
 			r := msg.Runes[0]
-			switch r {
-			case 'q':
+			switch {
+			case r == 'q':
 				bm.done = true
 				return bm, nil
-			case '/':
+			case r == '/':
 				bm.filtering = true
 				bm.filterText = ""
+				return bm, nil
+			case r >= '1' && r <= '9':
+				idx := int(r - '1') // '1' → 0, '2' → 1, etc.
+				if idx < len(bm.visible) {
+					bm.cursor = idx
+				}
 				return bm, nil
 			default:
 				bm.done = true
@@ -185,13 +191,19 @@ func (bm BrowseModel) updateDetail(msg tea.KeyMsg) (BrowseModel, tea.Cmd) {
 	case tea.KeyRunes:
 		if len(msg.Runes) == 1 {
 			r := msg.Runes[0]
-			switch r {
-			case 'q':
+			switch {
+			case r == 'q':
 				bm.drillOut()
 				return bm, nil
-			case '/':
+			case r == '/':
 				bm.filtering = true
 				bm.filterText = ""
+				return bm, nil
+			case r >= '1' && r <= '9':
+				idx := int(r - '1')
+				if idx < len(bm.visible) {
+					bm.cursor = idx
+				}
 				return bm, nil
 			default:
 				bm.drillOut()

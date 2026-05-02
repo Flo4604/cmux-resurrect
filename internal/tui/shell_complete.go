@@ -88,6 +88,7 @@ var level2Subcommands = map[string][]completionItem{
 	},
 	"settings": {
 		{"banner", "🎨", "Banner style"},
+		{"restore-mode", "🔧", "Restore mode"},
 	},
 	"watch": {
 		{"start", "▶️", "Start daemon"},
@@ -98,7 +99,8 @@ var level2Subcommands = map[string][]completionItem{
 
 // nestedGroupPrefixes are level-2 subcommands that expand into level-3 commands.
 var nestedGroupPrefixes = map[string]bool{
-	"settings banner": true,
+	"settings banner":       true,
+	"settings restore-mode": true,
 }
 
 // level3Subcommands are the subcommands for three-word command groups.
@@ -107,6 +109,11 @@ var level3Subcommands = map[string][]completionItem{
 		{"get", "🔍", "Show current style"},
 		{"list", "📋", "List available styles"},
 		{"set", "🎨", "Set banner style"},
+	},
+	"settings restore-mode": {
+		{"set", "🔧", "Set restore mode"},
+		{"get", "🔍", "Show current mode"},
+		{"list", "📋", "List available modes"},
 	},
 }
 
@@ -298,6 +305,12 @@ func (ce *completionEngine) argCompletions(cmd, partial, prefix string) completi
 			{"flame", "🔥", "Gradient (ember → gold → green)"},
 			{"classic", "🟢", "Solid green"},
 			{"plain", "⬜", "Monochrome gray"},
+		}
+	case "settings restore-mode set":
+		argItems = []completionItem{
+			{"ask", "❓", "Prompt each time (default)"},
+			{"replace", "🔄", "Always replace"},
+			{"add", "➕", "Always add"},
 		}
 	case "bp remove", "bp rm", "bp toggle",
 		"blueprint remove", "blueprint toggle":

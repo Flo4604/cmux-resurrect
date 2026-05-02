@@ -36,6 +36,14 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		style = "flame"
 	}
 	m.SetBannerStyle(style)
+	m.SetRestoreMode(cfg.RestoreMode)
+	m.OnSettingChanged = func(key, value string) {
+		switch key {
+		case "restore_mode":
+			cfg.RestoreMode = value
+		}
+		_ = config.Save(config.DefaultConfigPath(), cfg)
+	}
 	m.BannerCycle = func(explicit string) (string, string, error) {
 		next := explicit
 		if next == "" {

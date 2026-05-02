@@ -258,6 +258,11 @@ func (bm *BrowseModel) applyFilter() {
 func (bm BrowseModel) View() string {
 	var b strings.Builder
 
+	// Show breadcrumb title when in detail view.
+	if bm.inDetail && bm.layoutName != "" {
+		fmt.Fprintf(&b, "  %s\n\n", shellDimStyle.Render(fmt.Sprintf("Restore from %q:", bm.layoutName)))
+	}
+
 	for i, item := range bm.visible {
 		idx := shellDimStyle.Render(fmt.Sprintf("[%d]", i+1))
 		name := item.Title()

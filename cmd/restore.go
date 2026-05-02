@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -12,6 +13,9 @@ import (
 
 var restoreDryRun bool
 var restoreMode string
+
+// errGoBack signals the user wants to return to the layout picker.
+var errGoBack = errors.New("go back")
 
 var restoreCmd = &cobra.Command{
 	Use:   "restore [name]",
@@ -37,10 +41,12 @@ func init() {
 func runRestore(cmd *cobra.Command, args []string) error {
 	var name string
 	var workspaceFilter string
+	var earlyMode orchestrate.RestoreMode
+	var earlyModeSet bool
 	if len(args) == 1 {
 		name = args[0]
 	} else {
-		// Interactive picker.
+		// Interactive picker with retry loop (user can go back from mode prompt).
 		store, err := newStore()
 		if err != nil {
 			return err
@@ -53,12 +59,28 @@ func runRestore(cmd *cobra.Command, args []string) error {
 			fmt.Fprintln(os.Stderr, dimStyle.Render("  No saved layouts. Use 'crex save <name>' to create one."))
 			return nil
 		}
-		pick, err := pickLayout(metas)
-		if err != nil {
-			return err
+		for {
+			pick, err := pickLayout(metas)
+			if err != nil {
+				return err
+			}
+			name = pick.Layout
+			workspaceFilter = pick.Workspace
+
+			// If mode needs interactive prompt, ask now so user can go back.
+			if restoreMode == "" && !restoreDryRun && cfg.RestoreMode == "" {
+				m, err := askRestoreMode()
+				if errors.Is(err, errGoBack) {
+					continue // back to picker
+				}
+				if err != nil {
+					return err
+				}
+				earlyMode = m
+				earlyModeSet = true
+			}
+			break
 		}
-		name = pick.Layout
-		workspaceFilter = pick.Workspace
 	}
 
 	// Validate --mode flag value early.
@@ -98,8 +120,9 @@ func runRestore(cmd *cobra.Command, args []string) error {
 	case restoreMode == "add":
 		mode = orchestrate.RestoreModeAdd
 	case restoreDryRun:
-		// Dry-run without explicit --mode defaults to "add" (non-destructive preview).
 		mode = orchestrate.RestoreModeAdd
+	case earlyModeSet:
+		mode = earlyMode
 	default:
 		switch cfg.RestoreMode {
 		case "replace":
@@ -107,7 +130,6 @@ func runRestore(cmd *cobra.Command, args []string) error {
 		case "add":
 			mode = orchestrate.RestoreModeAdd
 		default:
-			// Interactive prompt.
 			mode, err = askRestoreMode()
 			if err != nil {
 				return err
@@ -192,7 +214,7 @@ func askRestoreMode() (orchestrate.RestoreMode, error) {
 	fmt.Fprintf(os.Stderr, "%s\n", headingStyle.Render("How do you want to restore?"))
 	fmt.Fprintf(os.Stderr, "  %s  %s\n", cyanStyle.Render("[r]"), fmt.Sprintf("Replace — close all current %s, then restore", unitName(2)))
 	fmt.Fprintf(os.Stderr, "  %s  %s\n", cyanStyle.Render("[a]"), fmt.Sprintf("Add     — keep current %s, add restored ones", unitName(2)))
-	fmt.Fprintf(os.Stderr, "\n%s ", dimStyle.Render("Choice [r/a]:"))
+	fmt.Fprintf(os.Stderr, "\n%s ", dimStyle.Render("Choice [r/a/q back]:"))
 
 	reader := bufio.NewReader(os.Stdin)
 	input, err := reader.ReadString('\n')
@@ -200,12 +222,15 @@ func askRestoreMode() (orchestrate.RestoreMode, error) {
 		return orchestrate.RestoreModeReplace, fmt.Errorf("read input: %w", err)
 	}
 
-	switch strings.TrimSpace(strings.ToLower(input)) {
+	choice := strings.TrimSpace(strings.ToLower(input))
+	switch choice {
 	case "a", "add":
 		return orchestrate.RestoreModeAdd, nil
 	case "r", "replace", "":
 		return orchestrate.RestoreModeReplace, nil
+	case "q", "b", "back":
+		return 0, errGoBack
 	default:
-		return orchestrate.RestoreModeReplace, fmt.Errorf("invalid choice %q — use 'r' or 'a'", strings.TrimSpace(input))
+		return orchestrate.RestoreModeReplace, fmt.Errorf("invalid choice %q — use 'r' or 'a' (q to go back)", choice)
 	}
 }

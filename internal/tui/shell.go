@@ -45,8 +45,10 @@ type ShellModel struct {
 	lastCmd    string // last dispatched command, shown as dim header
 
 	// Banner style cycling (injected by cmd layer).
-	BannerCycle BannerCycleFn
-	bannerStyle string // current banner style for "banner get"
+	BannerCycle      BannerCycleFn
+	OnSettingChanged func(key, value string)
+	bannerStyle      string // current banner style for "banner get"
+	restoreMode      string // current restore mode for "settings restore-mode get"
 
 	// Tab completion
 	completer     completionEngine
@@ -103,6 +105,9 @@ func NewShellModel(store persist.Store, cl client.Backend, backend client.Detect
 
 // SetBannerStyle sets the current banner style name (for "banner get").
 func (m *ShellModel) SetBannerStyle(s string) { m.bannerStyle = s }
+
+// SetRestoreMode sets the current restore mode (for "settings restore-mode get").
+func (m *ShellModel) SetRestoreMode(mode string) { m.restoreMode = mode }
 
 // ByeMsg returns the farewell message to print after the TUI exits.
 func (m *ShellModel) ByeMsg() string { return m.byeMsg }
@@ -397,7 +402,15 @@ func (m *ShellModel) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *ShellModel) handleBrowseSelection(item Item) (tea.Model, tea.Cmd) {
 	switch m.browse.action {
 	case "restore":
-		return m, m.execRestore(item.Name)
+		layoutName := m.browse.layoutName
+		if layoutName == "" {
+			layoutName = item.Name
+		}
+		wsFilter := ""
+		if item.Kind == KindWorkspace {
+			wsFilter = item.Name
+		}
+		return m, m.execRestore(layoutName, wsFilter)
 	case "use":
 		m.execUse(item.Name)
 	case "toggle":
@@ -461,7 +474,7 @@ func (m *ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 
 	case "restore":
 		if resolved, ok := m.requireResolved(args, "restore <name|#>"); ok {
-			return m, m.execRestore(resolved)
+			return m, m.execRestore(resolved, "")
 		}
 
 	case "delete":
@@ -561,6 +574,38 @@ func (m *ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 		if resolved, ok := m.requireResolved(args, "bp toggle <name|#>"); ok {
 			m.execBpToggle(resolved)
 		}
+
+	case "settings restore-mode set":
+		if len(args) == 0 {
+			m.writeError("Usage: settings restore-mode set <ask|replace|add>")
+			break
+		}
+		mode := strings.ToLower(args[0])
+		switch mode {
+		case "ask", "replace", "add":
+			m.restoreMode = mode
+			if m.OnSettingChanged != nil {
+				m.OnSettingChanged("restore_mode", mode)
+			}
+			m.output.WriteString(shellSuccessStyle.Render(fmt.Sprintf("  ✓ Restore mode set to %q", mode)))
+			m.output.WriteString("\n\n")
+		default:
+			m.writeError(fmt.Sprintf("Invalid mode %q — use ask, replace, or add", mode))
+		}
+
+	case "settings restore-mode get":
+		mode := m.restoreMode
+		if mode == "" {
+			mode = "ask"
+		}
+		fmt.Fprintf(m.output, "  Current restore mode: %s\n\n", shellSuccessStyle.Render(mode))
+
+	case "settings restore-mode list":
+		m.output.WriteString("  Available restore modes:\n")
+		fmt.Fprintf(m.output, "    %s  prompt for replace/add each time (default)\n", shellSuccessStyle.Render("ask    "))
+		fmt.Fprintf(m.output, "    %s  always replace existing workspaces\n", shellSuccessStyle.Render("replace"))
+		fmt.Fprintf(m.output, "    %s  always add alongside existing workspaces\n", shellSuccessStyle.Render("add    "))
+		m.output.WriteString("\n")
 
 	default:
 		// Redirect old "banner" commands to "settings banner".

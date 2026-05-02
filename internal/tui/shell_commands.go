@@ -25,7 +25,7 @@ func parseCommand(input string) (cmd string, args []string) {
 	}
 
 	// Handle three-word commands: "settings banner set", etc.
-	threeWordGroups := map[string]bool{"settings banner": true}
+	threeWordGroups := map[string]bool{"settings banner": true, "settings restore-mode": true}
 	if len(parts) >= 2 {
 		group := parts[0] + " " + parts[1]
 		if threeWordGroups[group] && len(parts) >= 3 {

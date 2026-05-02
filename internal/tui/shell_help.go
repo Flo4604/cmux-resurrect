@@ -37,6 +37,9 @@ var helpEntries = []helpEntry{
 	{"🎨", "settings banner set", "<flame|classic|plain>", func(b client.DetectedBackend) string { return "Set banner style" }, "Settings"},
 	{"🔍", "settings banner get", "", func(b client.DetectedBackend) string { return "Show current style" }, "Settings"},
 	{"📋", "settings banner list", "", func(b client.DetectedBackend) string { return "List available styles" }, "Settings"},
+	{"🔧", "settings restore-mode set", "<ask|replace|add>", func(b client.DetectedBackend) string { return "Set restore mode" }, "Settings"},
+	{"🔍", "settings restore-mode get", "", func(b client.DetectedBackend) string { return "Show current mode" }, "Settings"},
+	{"📋", "settings restore-mode list", "", func(b client.DetectedBackend) string { return "List available modes" }, "Settings"},
 	{"❓", "help", "", func(b client.DetectedBackend) string { return "Show this help" }, "Shell"},
 	{"👋", "exit", "", func(b client.DetectedBackend) string { return "Exit the shell" }, "Shell"},
 }

@@ -142,26 +142,40 @@ func (m *ShellModel) execSave(name string) {
 	m.completer.Invalidate()
 }
 
-// execRestore restores a saved layout by name.
-func (m *ShellModel) execRestore(name string) tea.Cmd {
+// execRestore restores a saved layout by name, optionally filtered to a single workspace.
+func (m *ShellModel) execRestore(name string, workspaceFilter string) tea.Cmd {
 	if m.client == nil {
 		m.output.WriteString(shellErrorStyle.Render("  ✗ No backend connected"))
 		m.output.WriteString("\n\n")
 		return nil
 	}
 
-	m.output.WriteString(shellDimStyle.Render(fmt.Sprintf("  Restoring %q…", name)))
+	if workspaceFilter != "" {
+		m.output.WriteString(shellDimStyle.Render(fmt.Sprintf("  Restoring %q from %q…", workspaceFilter, name)))
+	} else {
+		m.output.WriteString(shellDimStyle.Render(fmt.Sprintf("  Restoring %q…", name)))
+	}
 	m.output.WriteString("\n")
+
+	mode := orchestrate.RestoreModeAdd
+	switch m.restoreMode {
+	case "replace":
+		mode = orchestrate.RestoreModeReplace
+	case "add":
+		mode = orchestrate.RestoreModeAdd
+	}
 
 	// Run restore asynchronously so "Restoring..." renders immediately.
 	cl := m.client
 	store := m.store
+	filter := workspaceFilter
+	restoreMode := mode
 	return func() tea.Msg {
 		restorer := &orchestrate.Restorer{
 			Client: cl,
 			Store:  store,
 		}
-		result, err := restorer.Restore(name, false, orchestrate.RestoreModeAdd, "")
+		result, err := restorer.Restore(name, false, restoreMode, filter)
 		return restoreResultMsg{result: result, err: err}
 	}
 }

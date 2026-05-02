@@ -176,7 +176,7 @@ func (bm BrowseModel) updateDetail(msg tea.KeyMsg) (BrowseModel, tea.Cmd) {
 			bm.cursor--
 		}
 		return bm, nil
-	case tea.KeyLeft, tea.KeyEsc, tea.KeyShiftTab:
+	case tea.KeyLeft, tea.KeyEsc, tea.KeyShiftTab, tea.KeyBackspace:
 		bm.drillOut()
 		return bm, nil
 	case tea.KeyEnter:

@@ -102,7 +102,7 @@ func (m pickerModel) updateLayout(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m pickerModel) updateMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
-	case tea.KeyEsc, tea.KeyShiftTab, tea.KeyLeft:
+	case tea.KeyEsc, tea.KeyShiftTab, tea.KeyLeft, tea.KeyBackspace:
 		// Go back to layout picker.
 		m.state = stateLayout
 		m.browse = tui.NewBrowseModel(m.items, "restore")

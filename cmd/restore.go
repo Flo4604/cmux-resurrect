@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/drolosoft/cmux-resurrect/internal/orchestrate"
 	"github.com/spf13/cobra"
 )
@@ -208,29 +208,102 @@ func countBlanks(cmds []string) int {
 	return n
 }
 
+// modePickerModel is a Bubble Tea model for the replace/add prompt.
+type modePickerModel struct {
+	cursor int // 0 = replace, 1 = add
+	done   bool
+	back   bool
+}
+
+func (m modePickerModel) Init() tea.Cmd { return nil }
+
+func (m modePickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyEsc:
+			m.back = true
+			m.done = true
+			return m, tea.Quit
+		case tea.KeyCtrlC:
+			m.done = true
+			return m, tea.Quit
+		case tea.KeyUp:
+			if m.cursor > 0 {
+				m.cursor--
+			}
+			return m, nil
+		case tea.KeyDown:
+			if m.cursor < 1 {
+				m.cursor++
+			}
+			return m, nil
+		case tea.KeyEnter:
+			m.done = true
+			return m, tea.Quit
+		case tea.KeyRunes:
+			if len(msg.Runes) == 1 {
+				switch msg.Runes[0] {
+				case 'r', 'R':
+					m.cursor = 0
+					m.done = true
+					return m, tea.Quit
+				case 'a', 'A':
+					m.cursor = 1
+					m.done = true
+					return m, tea.Quit
+				case 'q':
+					m.back = true
+					m.done = true
+					return m, tea.Quit
+				}
+			}
+		}
+	}
+	return m, nil
+}
+
+func (m modePickerModel) View() string {
+	var b strings.Builder
+	b.WriteString("\n")
+	b.WriteString(headingStyle.Render("How do you want to restore?"))
+	b.WriteString("\n")
+
+	labels := []string{
+		fmt.Sprintf("Replace — close all current %s, then restore", unitName(2)),
+		fmt.Sprintf("Add     — keep current %s, add restored ones", unitName(2)),
+	}
+	keys := []string{"r", "a"}
+
+	for i, label := range labels {
+		if i == m.cursor {
+			fmt.Fprintf(&b, "  %s %s  %s\n", greenStyle.Render("▸"), cyanStyle.Render("["+keys[i]+"]"), label)
+		} else {
+			fmt.Fprintf(&b, "    %s  %s\n", cyanStyle.Render("["+keys[i]+"]"), label)
+		}
+	}
+
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("  ↑/↓ select · ↵ confirm · esc back"))
+	b.WriteString("\n")
+	return b.String()
+}
+
 // askRestoreMode prompts the user to choose between replacing or adding workspaces.
 func askRestoreMode() (orchestrate.RestoreMode, error) {
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintf(os.Stderr, "%s\n", headingStyle.Render("How do you want to restore?"))
-	fmt.Fprintf(os.Stderr, "  %s  %s\n", cyanStyle.Render("[r]"), fmt.Sprintf("Replace — close all current %s, then restore", unitName(2)))
-	fmt.Fprintf(os.Stderr, "  %s  %s\n", cyanStyle.Render("[a]"), fmt.Sprintf("Add     — keep current %s, add restored ones", unitName(2)))
-	fmt.Fprintf(os.Stderr, "\n%s ", dimStyle.Render("Choice [r/a/q back]:"))
-
-	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
+	p := tea.NewProgram(modePickerModel{})
+	finalModel, err := p.Run()
 	if err != nil {
-		return orchestrate.RestoreModeReplace, fmt.Errorf("read input: %w", err)
+		return orchestrate.RestoreModeReplace, err
 	}
 
-	choice := strings.TrimSpace(strings.ToLower(input))
-	switch choice {
-	case "a", "add":
-		return orchestrate.RestoreModeAdd, nil
-	case "r", "replace", "":
-		return orchestrate.RestoreModeReplace, nil
-	case "q", "b", "back":
+	m := finalModel.(modePickerModel)
+	if m.back || !m.done {
 		return 0, errGoBack
-	default:
-		return orchestrate.RestoreModeReplace, fmt.Errorf("invalid choice %q — use 'r' or 'a' (q to go back)", choice)
 	}
+
+	if m.cursor == 1 {
+		return orchestrate.RestoreModeAdd, nil
+	}
+	return orchestrate.RestoreModeReplace, nil
 }

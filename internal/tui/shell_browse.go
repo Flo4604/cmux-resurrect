@@ -87,6 +87,15 @@ func (bm BrowseModel) SelectedItem() Item {
 	return Item{}
 }
 
+// Done reports whether the browse interaction has completed.
+func (bm BrowseModel) Done() bool { return bm.done }
+
+// Selected reports whether an item was selected (vs cancelled).
+func (bm BrowseModel) Selected() bool { return bm.selected }
+
+// LayoutName returns the layout name when in detail view (set by drillIn).
+func (bm BrowseModel) LayoutName() string { return bm.layoutName }
+
 // Update processes key events in browse mode.
 func (bm BrowseModel) Update(msg tea.KeyMsg) (BrowseModel, tea.Cmd) {
 	if bm.filtering {

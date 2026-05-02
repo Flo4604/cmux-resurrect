@@ -36,6 +36,7 @@ func init() {
 
 func runRestore(cmd *cobra.Command, args []string) error {
 	var name string
+	var workspaceFilter string
 	if len(args) == 1 {
 		name = args[0]
 	} else {
@@ -52,11 +53,12 @@ func runRestore(cmd *cobra.Command, args []string) error {
 			fmt.Fprintln(os.Stderr, dimStyle.Render("  No saved layouts. Use 'crex save <name>' to create one."))
 			return nil
 		}
-		picked, err := pickLayout(metas)
+		pick, err := pickLayout(metas)
 		if err != nil {
 			return err
 		}
-		name = picked
+		name = pick.Layout
+		workspaceFilter = pick.Workspace
 	}
 
 	// Validate --mode flag value early.
@@ -125,7 +127,7 @@ func runRestore(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "%s %s\n", yellowStyle.Render(action), greenStyle.Render(name))
 	}
 
-	result, err := restorer.Restore(name, restoreDryRun, mode, "")
+	result, err := restorer.Restore(name, restoreDryRun, mode, workspaceFilter)
 	if err != nil {
 		return err
 	}

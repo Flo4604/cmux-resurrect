@@ -28,12 +28,13 @@ As the user navigates layouts with ↑/↓, a workspace preview appears below th
     3  🧩 drolosoft             (1 pane)
     4  🔔 Soundbox              (1 pane)
 
-  ↑/↓ select · ↵/→ pick workspaces · / filter · esc cancel
+  ↑/↓ select · ↵ restore · → pick workspace · / filter · esc cancel
 ```
 
 **Navigation**:
 - ↑/↓: navigate layouts, preview updates dynamically
-- Enter or →: drill into workspace selection (Step 2)
+- Enter: restore all workspaces (current behavior, unchanged)
+- →: drill into workspace selection (Step 2)
 - /: filter layouts
 - Esc: cancel
 
@@ -92,24 +93,13 @@ When `workspaceFilter` is set:
 
 ### CLI surface (`cmd/picker.go`, `cmd/restore.go`)
 
-**picker.go**: Replace the single `huh.Select` with a two-step flow:
+**picker.go**: Keep the single `huh.Select` but add workspace preview via `DescriptionFunc`:
 
-1. First `huh.Select` with `DescriptionFunc` bound to `&selected` — when the selection changes, the description re-renders showing the workspace list for that layout.
-2. After the user picks a layout (Enter or →), a second `huh.Select` shows "All workspaces" + individual workspace entries.
+1. `huh.Select` with `DescriptionFunc` bound to `&selected` — when the selection changes, the description re-renders showing the workspace list for that layout.
+2. Enter picks the layout and restores all workspaces (current behavior, unchanged).
+3. The → drill-in to single-workspace selection is a TUI-only feature (huh Select doesn't support custom key bindings for →).
 
-Return type changes from `string` (layout name) to a struct:
-```go
-type PickResult struct {
-    Layout    string
-    Workspace string // empty = all workspaces
-}
-```
-
-**Handling → in huh**: huh Select doesn't natively treat → as Enter. Two options:
-- Use `huh.WithKeyMap` to bind → to confirm (if supported)
-- Accept that → may not work in the huh picker and document Enter only for CLI; → works in TUI
-
-**restore.go**: Pass `PickResult.Workspace` through to `Restorer.Restore` as the workspace filter.
+**restore.go**: No change to restore flow — picker still returns a layout name string.
 
 ### TUI surface (`internal/tui/`)
 
@@ -126,9 +116,9 @@ type BrowseModel struct {
 }
 ```
 
-**Key handling changes** (only when `action == "restore"`; other actions like "use" and "toggle" keep current Enter-to-select behavior):
+**Key handling changes** (only when `action == "restore"`; other actions like "use" and "toggle" keep current behavior):
 - → (KeyRight) in layout list: set `inDetail = true`, populate `detailItems` with "All workspaces" + workspace entries, save `parentCursor`
-- Enter in layout list: same as → (drill into workspace selection)
+- Enter in layout list: restore all workspaces (unchanged behavior — select + done)
 - ← (KeyLeft) or Esc in detail view: set `inDetail = false`, restore `parentCursor`
 - Enter in detail view: set `selected = true`, `done = true`
 

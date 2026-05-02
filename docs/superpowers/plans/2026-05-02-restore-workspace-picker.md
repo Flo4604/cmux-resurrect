@@ -707,7 +707,7 @@ func TestBrowseModel_EnterInDetail_Selects(t *testing.T) {
 	}
 }
 
-func TestBrowseModel_EnterOnLayout_DrillsIn(t *testing.T) {
+func TestBrowseModel_EnterOnLayout_RestoresAll(t *testing.T) {
 	items := []Item{
 		{Kind: KindLayout, Name: "layout-a", SubItems: []Item{
 			{Kind: KindWorkspace, Name: "ws1"},
@@ -715,31 +715,13 @@ func TestBrowseModel_EnterOnLayout_DrillsIn(t *testing.T) {
 	}
 	bm := NewBrowseModel(items, "restore")
 
-	// Enter on a layout in restore mode should drill in, not select.
-	bm, _ = bm.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if !bm.inDetail {
-		t.Error("Enter on layout in restore mode should drill into detail")
-	}
-	if bm.done {
-		t.Error("should NOT be done — still selecting workspace")
-	}
-}
-
-func TestBrowseModel_NonRestoreAction_EnterSelects(t *testing.T) {
-	items := []Item{
-		{Kind: KindLayout, Name: "layout-a", SubItems: []Item{
-			{Kind: KindWorkspace, Name: "ws1"},
-		}},
-	}
-	bm := NewBrowseModel(items, "use")
-
-	// Enter on a non-restore action should select directly (old behavior).
+	// Enter on a layout in restore mode should select+done (restore all), NOT drill in.
 	bm, _ = bm.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if bm.inDetail {
-		t.Error("non-restore action should not drill into detail")
+		t.Error("Enter should NOT drill into detail — it should restore all")
 	}
 	if !bm.selected || !bm.done {
-		t.Error("expected selected+done for non-restore action")
+		t.Error("expected selected+done (restore all workspaces)")
 	}
 }
 
@@ -879,14 +861,10 @@ func (bm BrowseModel) Update(msg tea.KeyMsg) (BrowseModel, tea.Cmd) {
 		return bm, nil
 
 	case tea.KeyEnter:
+		// Enter always selects (restore all for layouts, direct select for other actions).
 		if len(bm.visible) > 0 {
-			if bm.action == "restore" {
-				// In restore mode, Enter drills into workspace selection.
-				bm.drillIn()
-			} else {
-				bm.selected = true
-				bm.done = true
-			}
+			bm.selected = true
+			bm.done = true
 		}
 		return bm, nil
 
@@ -1017,11 +995,10 @@ func (bm BrowseModel) View() string {
 		b.WriteString(shellDimStyle.Render(hint))
 		b.WriteString("\n")
 	} else {
-		action := bm.action
+		hint := fmt.Sprintf("  ↑/↓ select · ↵ %s · / filter · q back", bm.action)
 		if bm.action == "restore" {
-			action = "pick workspaces"
+			hint = "  ↑/↓ select · ↵ restore · → pick workspace · / filter · esc cancel"
 		}
-		hint := fmt.Sprintf("  ↑/↓ select · ↵/→ %s · / filter · esc cancel", action)
 		b.WriteString(shellDimStyle.Render(hint))
 		b.WriteString("\n")
 	}
@@ -1139,15 +1116,14 @@ git commit -m "feat: wire workspace selection to single-workspace restore in TUI
 
 ---
 
-### Task 8: Two-step CLI picker with workspace preview
+### Task 8: CLI picker with workspace preview
 
 **Files:**
 - Modify: `cmd/picker.go`
-- Modify: `cmd/restore.go:37-60`
 
-- [ ] **Step 1: Define PickResult and rewrite pickLayout**
+- [ ] **Step 1: Add workspace preview to pickLayout**
 
-Replace the entire `cmd/picker.go`:
+Replace the entire `cmd/picker.go`. The picker keeps its current behavior (Enter = select layout, restore all) but adds a `DescriptionFunc` that shows workspace names for the highlighted layout:
 
 ```go
 package cmd
@@ -1160,19 +1136,12 @@ import (
 	"github.com/drolosoft/cmux-resurrect/internal/model"
 )
 
-// PickResult holds the user's selection from the layout picker.
-type PickResult struct {
-	Layout    string // layout name
-	Workspace string // specific workspace title, or empty for all
-}
-
-// pickLayout shows a two-step interactive selector: pick a layout, then pick a workspace.
-func pickLayout(metas []model.LayoutMeta) (*PickResult, error) {
+// pickLayout shows an interactive selector and lets the user pick a layout.
+// A workspace preview is shown below the list for the highlighted layout.
+func pickLayout(metas []model.LayoutMeta) (string, error) {
 	// Build workspace preview map.
 	previewByName := make(map[string]string)
-	metaByName := make(map[string]model.LayoutMeta)
 	for _, m := range metas {
-		metaByName[m.Name] = m
 		var sb strings.Builder
 		for i, title := range m.WorkspaceTitles {
 			panes := 0
@@ -1188,7 +1157,6 @@ func pickLayout(metas []model.LayoutMeta) (*PickResult, error) {
 		previewByName[m.Name] = strings.TrimRight(sb.String(), "\n")
 	}
 
-	// Step 1: Pick layout.
 	options := make([]huh.Option[string], len(metas))
 	for i, m := range metas {
 		label := fmt.Sprintf("%s  %d workspaces", m.Name, m.WorkspaceCount)
@@ -1215,84 +1183,25 @@ func pickLayout(metas []model.LayoutMeta) (*PickResult, error) {
 		}, &selected).
 		Run()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	// Step 2: Pick workspace.
-	meta := metaByName[selected]
-	wsOptions := make([]huh.Option[string], 0, len(meta.WorkspaceTitles)+1)
-	wsOptions = append(wsOptions, huh.NewOption(
-		fmt.Sprintf("All workspaces (%d)", meta.WorkspaceCount), "",
-	))
-	for _, title := range meta.WorkspaceTitles {
-		wsOptions = append(wsOptions, huh.NewOption(title, title))
-	}
-
-	var wsChoice string
-	err = huh.NewSelect[string]().
-		Title(fmt.Sprintf("📦 Restore from %q", selected)).
-		Options(wsOptions...).
-		Value(&wsChoice).
-		Run()
-	if err != nil {
-		return nil, err
-	}
-
-	return &PickResult{Layout: selected, Workspace: wsChoice}, nil
+	return selected, nil
 }
 ```
 
-- [ ] **Step 2: Update restore.go to use PickResult**
+Note: The return type stays `(string, error)` — no change to `cmd/restore.go` callers needed since Task 2 already updated the `Restore` call to pass `""` as workspace filter.
 
-In `cmd/restore.go`, update the picker call and workspace filter wiring (lines 37-60 and 121):
-
-Replace lines 37-60:
-
-```go
-func runRestore(cmd *cobra.Command, args []string) error {
-	var name string
-	var workspaceFilter string
-	if len(args) == 1 {
-		name = args[0]
-	} else {
-		// Interactive picker.
-		store, err := newStore()
-		if err != nil {
-			return err
-		}
-		metas, err := store.List()
-		if err != nil {
-			return err
-		}
-		if len(metas) == 0 {
-			fmt.Fprintln(os.Stderr, dimStyle.Render("  No saved layouts. Use 'crex save <name>' to create one."))
-			return nil
-		}
-		pick, err := pickLayout(metas)
-		if err != nil {
-			return err
-		}
-		name = pick.Layout
-		workspaceFilter = pick.Workspace
-	}
-```
-
-Update line 121 (the `Restore` call) to pass the workspace filter:
-
-```go
-	result, err := restorer.Restore(name, restoreDryRun, mode, workspaceFilter)
-```
-
-- [ ] **Step 3: Build and run tests**
+- [ ] **Step 2: Build and run tests**
 
 Run: `go build ./... && go test ./... -count=1`
 Expected: All pass.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add cmd/picker.go cmd/restore.go
-git commit -m "feat: two-step CLI picker with workspace preview and selection"
+git add cmd/picker.go
+git commit -m "feat: CLI picker with workspace preview via DescriptionFunc"
 ```
 
 ---

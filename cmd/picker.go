@@ -2,60 +2,72 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
-	"github.com/charmbracelet/huh"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/drolosoft/cmux-resurrect/internal/model"
+	"github.com/drolosoft/cmux-resurrect/internal/tui"
 )
 
-// pickLayout shows an interactive selector and lets the user pick a layout.
-// When navigating, workspace names and pane counts appear below as a preview.
-func pickLayout(metas []model.LayoutMeta) (string, error) {
-	previewByName := make(map[string]string)
-	for _, m := range metas {
-		var sb strings.Builder
-		for i, title := range m.WorkspaceTitles {
-			panes := 0
-			if i < len(m.WorkspacePanes) {
-				panes = m.WorkspacePanes[i]
-			}
-			paneLabel := fmt.Sprintf("%d panes", panes)
-			if panes == 1 {
-				paneLabel = "1 pane"
-			}
-			fmt.Fprintf(&sb, "    %s  (%s)\n", title, paneLabel)
-		}
-		previewByName[m.Name] = strings.TrimRight(sb.String(), "\n")
-	}
+// PickResult holds the user's selection from the layout picker.
+type PickResult struct {
+	Layout    string // layout name
+	Workspace string // specific workspace title, or empty for all
+}
 
-	options := make([]huh.Option[string], len(metas))
-	for i, m := range metas {
-		label := fmt.Sprintf("%s  %d workspaces", m.Name, m.WorkspaceCount)
-		if m.Description != "" {
-			desc := m.Description
-			if len(desc) > 35 {
-				desc = desc[:32] + "..."
-			}
-			label += "  " + desc
-		}
-		options[i] = huh.NewOption(label, m.Name)
-	}
+// pickerModel wraps BrowseModel for standalone CLI use.
+type pickerModel struct {
+	browse tui.BrowseModel
+	done   bool
+}
 
-	var selected string
-	err := huh.NewSelect[string]().
-		Title("📦 Select a layout to restore").
-		Options(options...).
-		Value(&selected).
-		DescriptionFunc(func() string {
-			if preview, ok := previewByName[selected]; ok {
-				return "\n  Workspaces:\n" + preview
-			}
-			return ""
-		}, &selected).
-		Run()
+func (m pickerModel) Init() tea.Cmd { return nil }
+
+func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.Type == tea.KeyCtrlC {
+			return m, tea.Quit
+		}
+		m.browse, _ = m.browse.Update(msg)
+		if m.browse.Done() {
+			m.done = true
+			return m, tea.Quit
+		}
+	}
+	return m, nil
+}
+
+func (m pickerModel) View() string {
+	return fmt.Sprintf("  📦 Select a layout to restore\n\n%s", m.browse.View())
+}
+
+// pickLayout shows an interactive picker using the same BrowseModel as the TUI.
+// Returns the selected layout name and optional workspace filter.
+func pickLayout(metas []model.LayoutMeta) (*PickResult, error) {
+	items := tui.ItemsFromLayouts(metas)
+	browse := tui.NewBrowseModel(items, "restore")
+
+	p := tea.NewProgram(pickerModel{browse: browse})
+	finalModel, err := p.Run()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return selected, nil
+	m := finalModel.(pickerModel)
+	if !m.done || !m.browse.Selected() {
+		return nil, fmt.Errorf("cancelled")
+	}
+
+	item := m.browse.SelectedItem()
+	result := &PickResult{Layout: item.Name}
+
+	// If user drilled into workspace detail and selected a specific workspace.
+	if item.Kind == tui.KindWorkspace {
+		result.Workspace = item.Name
+		result.Layout = m.browse.LayoutName()
+	} else if item.Kind == tui.KindAllWs {
+		result.Layout = m.browse.LayoutName()
+	}
+
+	return result, nil
 }

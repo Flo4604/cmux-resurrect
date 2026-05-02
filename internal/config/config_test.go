@@ -87,6 +87,29 @@ func TestExpandHome(t *testing.T) {
 	}
 }
 
+func TestLoad_RestoreMode(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	content := `restore_mode = "add"`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.RestoreMode != "add" {
+		t.Errorf("RestoreMode = %q, want %q", cfg.RestoreMode, "add")
+	}
+}
+
+func TestDefaultConfig_RestoreMode(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.RestoreMode != "" {
+		t.Errorf("RestoreMode default = %q, want empty (ask)", cfg.RestoreMode)
+	}
+}
+
 func TestLoad_WithWorkspaceFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")

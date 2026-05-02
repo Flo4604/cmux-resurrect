@@ -186,4 +186,3 @@ func countBlanks(cmds []string) int {
 	}
 	return n
 }
-

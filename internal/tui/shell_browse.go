@@ -280,22 +280,6 @@ func (bm BrowseModel) View() string {
 		b.WriteString("\n")
 	}
 
-	if !bm.inDetail && bm.action == "restore" && bm.cursor < len(bm.visible) {
-		item := bm.visible[bm.cursor]
-		if len(item.SubItems) > 0 {
-			b.WriteString("\n")
-			fmt.Fprintf(&b, "  %s\n", shellDimStyle.Render(fmt.Sprintf("Workspaces in %q:", item.Name)))
-			for _, ws := range item.SubItems {
-				desc := ws.Desc()
-				if desc != "" {
-					fmt.Fprintf(&b, "    %s  %s\n", ws.Name, shellDimStyle.Render("("+desc+")"))
-				} else {
-					fmt.Fprintf(&b, "    %s\n", ws.Name)
-				}
-			}
-		}
-	}
-
 	if bm.filtering {
 		fmt.Fprintf(&b, "  / %s", bm.filterText)
 		b.WriteString(shellDimStyle.Render("▌"))

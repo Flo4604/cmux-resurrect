@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.7.0] — 2026-05-02
+
+### Added
+- **Restore workspace picker** — two-level layout → workspace selection with →/Tab to drill in, ←/Esc/Backspace to go back
+- **Single-workspace restore** — select a specific workspace from a layout to restore just that one
+- **`restore_mode` setting** — configure default restore behavior (`ask`, `replace`, `add`) via config or TUI (`settings restore-mode set/get/list`)
+- **Digit jump** — press 1-9 in any browse list to jump to that item
+- **Combined alt-screen picker** — layout selection and replace/add mode prompt in one clean full-screen program
+
+### Changed
+- **CLI restore picker** — replaced huh Select with BrowseModel for identical behavior in CLI and TUI
+- **Mode prompt** — replaced raw stdin prompt with Bubble Tea model for proper Esc/arrow key handling
+
+---
+
 ## [v1.6.2] — 2026-04-29
 
 ### Fixed
@@ -236,6 +251,7 @@ Initial public release.
 [v1.5.1]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.5.1
 [v1.5.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.5.0
 [v1.4.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.4.0
+[v1.7.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.7.0
 [v1.6.2]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.6.2
 [v1.3.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.3.0
 [v1.2.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.2.0

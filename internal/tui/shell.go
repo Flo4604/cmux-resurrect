@@ -482,6 +482,19 @@ func (m *ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 			m.execDelete(resolved)
 		}
 
+	case "rename":
+		if len(args) < 2 {
+			m.writeError("Usage: rename <old|#> <new>")
+			break
+		}
+		oldName := args[0]
+		newName := args[1]
+		// Resolve old name if it's a number reference.
+		if resolved, err := resolveNameOrNumber(oldName, m.lastItems); err == nil {
+			oldName = resolved
+		}
+		m.execRename(oldName, newName)
+
 	case "show":
 		if resolved, ok := m.requireResolved(args, "show <name|#>"); ok {
 			m.execShow(resolved)

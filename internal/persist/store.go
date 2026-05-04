@@ -35,6 +35,7 @@ type Store interface {
 	Load(name string) (*model.Layout, error)
 	List() ([]model.LayoutMeta, error)
 	Delete(name string) error
+	Rename(oldName, newName string) error
 	Exists(name string) bool
 	Path(name string) string
 }
@@ -167,4 +168,31 @@ func (s *FileStore) Delete(name string) error {
 		return fmt.Errorf("layout %q not found", name)
 	}
 	return os.Remove(s.Path(name))
+}
+
+// Rename moves a layout file and updates the name inside the TOML.
+func (s *FileStore) Rename(oldName, newName string) error {
+	if err := validateName(oldName); err != nil {
+		return err
+	}
+	if err := validateName(newName); err != nil {
+		return err
+	}
+	if !s.Exists(oldName) {
+		return fmt.Errorf("layout %q not found", oldName)
+	}
+	if s.Exists(newName) {
+		return fmt.Errorf("layout %q already exists", newName)
+	}
+
+	// Load, update name, save to new path, delete old.
+	layout, err := s.Load(oldName)
+	if err != nil {
+		return fmt.Errorf("load %q: %w", oldName, err)
+	}
+	layout.Name = newName
+	if err := s.Save(newName, layout); err != nil {
+		return fmt.Errorf("save %q: %w", newName, err)
+	}
+	return os.Remove(s.Path(oldName))
 }

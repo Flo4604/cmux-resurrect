@@ -201,6 +201,24 @@ func (m *ShellModel) handleRestoreResult(msg restoreResultMsg) {
 }
 
 // execDelete enters confirmation mode for deleting a saved layout.
+func (m *ShellModel) execRename(oldName, newName string) {
+	if m.store == nil {
+		m.output.WriteString(shellErrorStyle.Render("  ✗ No store configured"))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	if err := m.store.Rename(oldName, newName); err != nil {
+		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	m.output.WriteString(shellSuccessStyle.Render(fmt.Sprintf("  ✓ Renamed %q → %q", oldName, newName)))
+	m.output.WriteString("\n\n")
+	m.completer.Invalidate()
+}
+
 func (m *ShellModel) execDelete(name string) {
 	if m.store == nil {
 		m.output.WriteString(shellErrorStyle.Render("  ✗ No store configured"))

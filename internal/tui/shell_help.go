@@ -23,6 +23,7 @@ var helpEntries = []helpEntry{
 	{"💾", "save", "[name]", func(b client.DetectedBackend) string { return "Save current layout" }, "Layouts"},
 	{"🔎", "show", "<name|#>", func(b client.DetectedBackend) string { return "Show layout details" }, "Layouts"},
 	{"📝", "edit", "<name|#>", func(b client.DetectedBackend) string { return "Edit layout in $EDITOR" }, "Layouts"},
+	{"✏️", "rename", "<old|#> <new>", func(b client.DetectedBackend) string { return "Rename a saved layout" }, "Layouts"},
 	{"🗑", "delete", "<name|#>", func(b client.DetectedBackend) string { return "Delete a saved layout" }, "Layouts"},
 	{"📦", "templates", "", func(b client.DetectedBackend) string { return "Browse template gallery" }, "Templates"},
 	{"🚀", "use", "<template|#>", func(b client.DetectedBackend) string { return "Create " + unitLabel(b, 1) + " from template" }, "Templates"},

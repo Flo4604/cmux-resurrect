@@ -44,6 +44,7 @@ var level1Commands = []completionItem{
 	// Layouts (alphabetical)
 	{"delete", "🗑", "Delete a saved layout"},
 	{"edit", "📝", "Edit layout in $EDITOR"},
+	{"rename", "✏️", "Rename a saved layout"},
 	{"list", "📋", "List saved layouts"},
 	{"ls", "📋", "List saved layouts"},
 	{"restore", "🔄", "Restore a saved layout"},
@@ -120,7 +121,7 @@ var level3Subcommands = map[string][]completionItem{
 // singleCommands is the set of single-word commands that take arguments.
 var singleCommands = map[string]bool{
 	"help": true, "ls": true, "list": true, "now": true,
-	"save": true, "restore": true, "show": true, "edit": true, "delete": true,
+	"save": true, "restore": true, "show": true, "edit": true, "delete": true, "rename": true,
 	"templates": true, "use": true, "watch": true,
 	"import": true, "import-from-md": true, "export": true, "export-to-md": true,
 	"exit": true, "quit": true, "?": true,
@@ -294,7 +295,7 @@ func (ce *completionEngine) argCompletions(cmd, partial, prefix string) completi
 	var argItems []completionItem
 
 	switch cmd {
-	case "restore", "delete", "save", "show", "edit":
+	case "restore", "delete", "save", "show", "edit", "rename":
 		argItems = ce.layoutItems()
 	case "use", "template show", "template customize":
 		argItems = ce.templateItems()

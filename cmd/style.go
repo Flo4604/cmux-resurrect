@@ -222,6 +222,7 @@ func styledHelp() string {
 	helpCmd(&b, "list", "", "List saved layouts")
 	helpCmd(&b, "show", "<name>", "Display layout details")
 	helpCmd(&b, "edit", "<name>", "Open in $EDITOR")
+	helpCmd(&b, "rename", "<old> <new>", "Rename a saved layout")
 	helpCmd(&b, "delete", "<name>", "Delete a layout")
 	helpCmd(&b, "watch", "[name]", "Auto-save on a timer (--daemon, --stop, --status)")
 	helpCmd(&b, "setup", "", "First-run wizard")

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -137,6 +138,95 @@ func TestFileStore_DeleteNonexistent(t *testing.T) {
 
 	if err := store.Delete("nope"); err == nil {
 		t.Error("expected error deleting nonexistent layout")
+	}
+}
+
+func TestFileStore_Rename(t *testing.T) {
+	dir := t.TempDir()
+	store, err := NewFileStore(dir)
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+
+	layout := &model.Layout{
+		Name:    "old-name",
+		Version: 1,
+		SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{Title: "ws1", CWD: "/tmp", Panes: []model.Pane{{Type: "terminal"}}},
+		},
+	}
+	if err := store.Save("old-name", layout); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	if err := store.Rename("old-name", "new-name"); err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+
+	if store.Exists("old-name") {
+		t.Error("old layout still exists after rename")
+	}
+	if !store.Exists("new-name") {
+		t.Error("new layout does not exist after rename")
+	}
+
+	// Verify the name inside the TOML was updated.
+	loaded, err := store.Load("new-name")
+	if err != nil {
+		t.Fatalf("load renamed: %v", err)
+	}
+	if loaded.Name != "new-name" {
+		t.Errorf("Name = %q, want %q", loaded.Name, "new-name")
+	}
+	if len(loaded.Workspaces) != 1 {
+		t.Errorf("workspaces lost during rename: got %d, want 1", len(loaded.Workspaces))
+	}
+}
+
+func TestFileStore_Rename_AlreadyExists(t *testing.T) {
+	dir := t.TempDir()
+	store, err := NewFileStore(dir)
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+
+	for _, name := range []string{"alpha", "beta"} {
+		l := &model.Layout{Name: name, Version: 1, SavedAt: time.Now().UTC()}
+		if err := store.Save(name, l); err != nil {
+			t.Fatalf("save %s: %v", name, err)
+		}
+	}
+
+	err = store.Rename("alpha", "beta")
+	if err == nil {
+		t.Fatal("expected error renaming to existing layout")
+	}
+	if !strings.Contains(err.Error(), "already exists") {
+		t.Errorf("error = %q, want 'already exists'", err.Error())
+	}
+	// Both originals should still exist.
+	if !store.Exists("alpha") {
+		t.Error("alpha should still exist")
+	}
+	if !store.Exists("beta") {
+		t.Error("beta should still exist")
+	}
+}
+
+func TestFileStore_Rename_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	store, err := NewFileStore(dir)
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+
+	err = store.Rename("nonexistent", "whatever")
+	if err == nil {
+		t.Fatal("expected error renaming nonexistent layout")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error = %q, want 'not found'", err.Error())
 	}
 }
 

@@ -111,7 +111,9 @@ func (tu *TemplateUser) execute(panes []model.Pane, opts TemplateUseOpts, title 
 	for i, pane := range panes {
 		if i == 0 {
 			if pane.Command != "" {
-				if err := tu.Client.Send(ref, "", pane.Command+"\\n"); err != nil {
+				if err := waitForShellReady(tu.Client, ref, ""); err != nil {
+					tu.progress(fmt.Sprintf("pane %d shell not ready: %v", i, err))
+				} else if err := tu.Client.Send(ref, "", pane.Command+"\\n"); err != nil {
 					tu.progress(fmt.Sprintf("pane %d send: %v", i, err))
 				}
 			}
@@ -136,12 +138,15 @@ func (tu *TemplateUser) execute(panes []model.Pane, opts TemplateUseOpts, title 
 			tu.progress(fmt.Sprintf("pane %d split: %v", i, err))
 			continue
 		}
-		time.Sleep(DelayAfterSplit)
 
 		if pane.Command != "" {
-			if err := tu.Client.Send(ref, surfaceRef, pane.Command+"\\n"); err != nil {
+			if err := waitForShellReady(tu.Client, ref, surfaceRef); err != nil {
+				tu.progress(fmt.Sprintf("pane %d shell not ready: %v", i, err))
+			} else if err := tu.Client.Send(ref, surfaceRef, pane.Command+"\\n"); err != nil {
 				tu.progress(fmt.Sprintf("pane %d send: %v", i, err))
 			}
+		} else {
+			time.Sleep(DelayAfterSplit)
 		}
 	}
 

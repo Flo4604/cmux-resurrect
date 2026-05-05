@@ -198,7 +198,9 @@ func (r *Restorer) restoreWorkspace(ws model.Workspace, dryRun bool, result *Res
 		if i == 0 {
 			// First pane is the default one created with the workspace.
 			if pane.Command != "" {
-				if err := r.Client.Send(ref, "", pane.Command+"\\n"); err != nil {
+				if err := waitForShellReady(r.Client, ref, ""); err != nil {
+					result.Errors = append(result.Errors, fmt.Sprintf("  pane %d shell not ready: %v", i, err))
+				} else if err := r.Client.Send(ref, "", pane.Command+"\\n"); err != nil {
 					result.Errors = append(result.Errors, fmt.Sprintf("  pane %d send command: %v", i, err))
 				}
 			}
@@ -224,14 +226,16 @@ func (r *Restorer) restoreWorkspace(ws model.Workspace, dryRun bool, result *Res
 			continue
 		}
 
-		// Wait for the shell in the new pane to fully initialize.
-		time.Sleep(DelayAfterSplit)
-
 		if pane.Command != "" {
-			// Send to the specific surface — without --surface, cmux defaults to pane 0.
-			if err := r.Client.Send(ref, surfaceRef, pane.Command+"\\n"); err != nil {
+			// Wait for the shell in the new pane to become interactive before sending.
+			if err := waitForShellReady(r.Client, ref, surfaceRef); err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("  pane %d shell not ready: %v", i, err))
+			} else if err := r.Client.Send(ref, surfaceRef, pane.Command+"\\n"); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("  pane %d send command: %v", i, err))
 			}
+		} else {
+			// No command — just let the shell settle.
+			time.Sleep(DelayAfterSplit)
 		}
 	}
 

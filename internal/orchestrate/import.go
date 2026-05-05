@@ -131,7 +131,9 @@ func (im *Importer) ImportFromMD(wf *model.WorkspaceFile, dryRun bool) (*ImportR
 		for j, pane := range panes {
 			if j == 0 {
 				if pane.Command != "" {
-					_ = im.Client.Send(ref, "", pane.Command+"\\n")
+					if err := waitForShellReady(im.Client, ref, ""); err == nil {
+						_ = im.Client.Send(ref, "", pane.Command+"\\n")
+					}
 				}
 				continue
 			}
@@ -163,10 +165,12 @@ func (im *Importer) ImportFromMD(wf *model.WorkspaceFile, dryRun bool) (*ImportR
 				})
 				continue
 			}
-			// Wait for shell to fully initialize in the new pane.
-			time.Sleep(DelayAfterSplit)
 			if pane.Command != "" {
-				_ = im.Client.Send(ref, surfaceRef, pane.Command+"\\n")
+				if err := waitForShellReady(im.Client, ref, surfaceRef); err == nil {
+					_ = im.Client.Send(ref, surfaceRef, pane.Command+"\\n")
+				}
+			} else {
+				time.Sleep(DelayAfterSplit)
 			}
 		}
 

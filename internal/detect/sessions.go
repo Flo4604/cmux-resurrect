@@ -9,8 +9,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Session represents a detected AI CLI session.
@@ -167,6 +169,9 @@ func detectClaude(cwd string) *Session {
 	})
 
 	sessionID := strings.TrimSuffix(sessions[0].name, ".jsonl")
+	if !validSessionID.MatchString(sessionID) {
+		return nil
+	}
 	return &Session{
 		Tool:    "claude",
 		CWD:     cwd,
@@ -196,7 +201,7 @@ func detectOpenCode(cwd string) *Session {
 	}
 
 	sessionID := strings.TrimSpace(string(out))
-	if sessionID == "" {
+	if sessionID == "" || !validSessionID.MatchString(sessionID) {
 		return nil
 	}
 
@@ -208,9 +213,15 @@ func detectOpenCode(cwd string) *Session {
 }
 
 // escapeSQLite escapes single quotes for SQLite string literals.
+// The input comes from lsof output (machine-sourced), not user input.
 func escapeSQLite(s string) string {
 	return strings.ReplaceAll(s, "'", "''")
 }
+
+// validSessionID checks that a session ID contains only safe characters.
+// This prevents corrupted or crafted IDs from injecting shell commands
+// when the resume command is sent to a terminal via Send.
+var validSessionID = regexp.MustCompile(`^[a-zA-Z0-9_\-]+$`)
 
 // detectCodex finds the active session for a Codex instance by CWD.
 // Codex 0.128+ stores sessions as JSONL files under ~/.codex/sessions/YYYY/MM/DD/.
@@ -234,40 +245,51 @@ func detectCodex(cwd string) *Session {
 
 // detectCodexNew handles Codex 0.128+ sessions stored as .jsonl in dated subdirs.
 // Each file's first line has type "session_meta" with payload.id and payload.cwd.
+// Walks reverse-chronologically from today, bounded to 30 days, to avoid scanning
+// the entire session history.
 func detectCodexNew(sessDir, cwd string) *Session {
-	// Walk dated directories for .jsonl files, sorted by modification time.
-	var candidates []string
-	_ = filepath.Walk(sessDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
+	now := time.Now()
+	for daysBack := 0; daysBack < 30; daysBack++ {
+		d := now.AddDate(0, 0, -daysBack)
+		dayDir := filepath.Join(sessDir, d.Format("2006"), d.Format("01"), d.Format("02"))
+		entries, err := os.ReadDir(dayDir)
+		if err != nil {
+			continue
 		}
-		if strings.HasSuffix(path, ".jsonl") && strings.Contains(filepath.Base(path), "rollout-") {
-			candidates = append(candidates, path)
-		}
-		return nil
-	})
-	if len(candidates) == 0 {
-		return nil
-	}
 
-	// Sort by mod time, most recent first.
-	sort.Slice(candidates, func(i, j int) bool {
-		infoI, _ := os.Stat(candidates[i])
-		infoJ, _ := os.Stat(candidates[j])
-		if infoI == nil || infoJ == nil {
-			return false
+		// Collect rollout files with their mod times.
+		type candidate struct {
+			path    string
+			modTime int64
 		}
-		return infoI.ModTime().After(infoJ.ModTime())
-	})
+		var files []candidate
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasPrefix(e.Name(), "rollout-") || !strings.HasSuffix(e.Name(), ".jsonl") {
+				continue
+			}
+			info, err := e.Info()
+			if err != nil {
+				continue
+			}
+			files = append(files, candidate{
+				path:    filepath.Join(dayDir, e.Name()),
+				modTime: info.ModTime().UnixNano(),
+			})
+		}
 
-	// Find the most recent session matching the CWD.
-	for _, path := range candidates {
-		id, dir := readCodexJSONLMeta(path)
-		if id != "" && dir == cwd {
-			return &Session{
-				Tool:    "codex",
-				CWD:     cwd,
-				Command: "codex resume " + id,
+		// Sort most recent first within the day.
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].modTime > files[j].modTime
+		})
+
+		for _, f := range files {
+			id, dir := readCodexJSONLMeta(f.path)
+			if id != "" && dir == cwd {
+				return &Session{
+					Tool:    "codex",
+					CWD:     cwd,
+					Command: "codex resume " + id,
+				}
 			}
 		}
 	}
@@ -343,6 +365,9 @@ func detectCodexLegacy(sessDir, cwd string) *Session {
 		} `json:"session"`
 	}
 	if err := json.Unmarshal(data, &rollout); err != nil || rollout.Session.ID == "" {
+		return nil
+	}
+	if !validSessionID.MatchString(rollout.Session.ID) {
 		return nil
 	}
 

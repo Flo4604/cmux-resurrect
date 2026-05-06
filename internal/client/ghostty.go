@@ -517,24 +517,23 @@ func (g *GhosttyClient) Send(workspaceRef, surfaceRef, text string) error {
 		needsEnter = true
 	}
 
+	// Combine input text + enter into a single osascript call.
+	// Two separate calls leave a gap where Ghostty can shift focus
+	// or process events, causing the enter key to be lost or misrouted.
+	var lines []string
+	lines = append(lines, `tell application "Ghostty"`)
+	lines = append(lines, fmt.Sprintf(`  set t to %s`, target))
 	if text != "" {
-		_, err = g.runScript(fmt.Sprintf(
-			`tell application "Ghostty" to input text %q to %s`,
-			text, target,
-		))
-		if err != nil {
-			return fmt.Errorf("input text: %w", err)
-		}
+		lines = append(lines, fmt.Sprintf(`  input text "%s" to t`, escapeAppleScript(text)))
 	}
-
 	if needsEnter {
-		_, err = g.runScript(fmt.Sprintf(
-			`tell application "Ghostty" to send key "enter" to %s`,
-			target,
-		))
-		if err != nil {
-			return fmt.Errorf("send enter: %w", err)
-		}
+		lines = append(lines, `  send key "enter" to t`)
+	}
+	lines = append(lines, `end tell`)
+
+	_, err = g.runScriptLines(lines...)
+	if err != nil {
+		return fmt.Errorf("send: %w", err)
 	}
 
 	return nil

@@ -110,6 +110,30 @@ Listings show numbered items — use the number in any follow-up command. Arrow 
 
 Define your terminal layout in Obsidian-compatible Markdown. Import creates only what's missing — it's idempotent.
 
+**Resume AI coding sessions across restarts** — Claude Code, OpenCode, and Codex all persist conversations locally. crex restores the terminals and tells each tool to continue where you left off:
+
+```markdown
+## Projects
+**Icon | Name | Template | Pin | Path**
+
+- [x] | 🤖 | Claude Code | claude-resume | yes | ~/projects/myapp
+- [x] | 🟢 | OpenCode    | opencode-resume | yes | ~/projects/api
+- [x] | 🔵 | Codex       | codex-resume | yes | ~/projects/frontend
+
+## Templates
+
+### claude-resume
+- [x] main terminal: `claude --continue --dangerously-skip-permissions` (focused)
+
+### opencode-resume
+- [x] main terminal: `opencode --continue` (focused)
+
+### codex-resume
+- [x] main terminal: `codex resume --last` (focused)
+```
+
+Works with any command — dev servers, test watchers, git UIs, or AI pair-programming sessions:
+
 ```markdown
 ## Projects
 **Icon | Name | Template | Pin | Path**

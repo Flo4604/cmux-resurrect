@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/drolosoft/cmux-resurrect/internal/client"
+	"github.com/drolosoft/cmux-resurrect/internal/detect"
 	"github.com/drolosoft/cmux-resurrect/internal/model"
 	"github.com/drolosoft/cmux-resurrect/internal/persist"
 )
@@ -56,6 +58,11 @@ func (s *Saver) Save(name, description string) (*model.Layout, error) {
 	if existing, err := s.Store.Load(name); err == nil {
 		mergeUserEdits(layout, existing)
 	}
+
+	// Auto-detect running AI CLI sessions and populate resume commands.
+	// Surface titles from the tree confirm which panes actually run an AI CLI,
+	// preventing false matches when multiple workspaces share a CWD.
+	applyDetectedSessions(layout, win.Workspaces)
 
 	if err := s.Store.Save(name, layout); err != nil {
 		return nil, fmt.Errorf("save layout: %w", err)
@@ -116,6 +123,107 @@ func (s *Saver) buildWorkspace(tw client.TreeWorkspace) (*model.Workspace, error
 	}
 
 	return ws, nil
+}
+
+// aiTitlePatterns maps AI tool names to substrings found in terminal titles
+// when that tool is the active foreground process. These are set by the
+// programs themselves via ANSI escape codes — not user-configurable.
+var aiTitlePatterns = map[string][]string{
+	"claude":   {"Claude Code", "claude"},
+	"opencode": {"OpenCode", "opencode", "OC |"},
+	"codex":    {"Codex", "codex"},
+}
+
+// applyDetectedSessions scans for running AI CLI sessions (Claude Code,
+// OpenCode, Codex) and sets the resume command on matching panes.
+// Detection is best-effort: if anything fails, panes are left unchanged.
+//
+// Matching strategy (two passes):
+//  1. Title-confirmed: both CWD and surface title agree → highest confidence.
+//  2. CWD-only fallback: for tools that don't set a recognizable title,
+//     match by CWD alone — but only if no other workspace already claimed
+//     that CWD in pass 1.
+//
+// Each CWD is consumed after the first match to prevent duplicates.
+func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWorkspace) {
+	sessions := detect.AISessions()
+	if len(sessions) == 0 {
+		return
+	}
+
+	// Build a lookup of surface titles by workspace title + pane index.
+	type paneKey struct {
+		wsTitle string
+		paneIdx int
+	}
+	surfaceTitles := make(map[paneKey]string)
+	for _, tw := range treeWorkspaces {
+		for _, tp := range tw.Panes {
+			for _, s := range tp.Surfaces {
+				surfaceTitles[paneKey{tw.Title, tp.Index}] = s.Title
+				break // first surface per pane is enough
+			}
+		}
+	}
+
+	consumed := make(map[string]bool)
+
+	// Pass 1: title-confirmed matches (high confidence).
+	for i := range layout.Workspaces {
+		ws := &layout.Workspaces[i]
+		s, ok := sessions[ws.CWD]
+		if !ok || consumed[ws.CWD] {
+			continue
+		}
+		patterns := aiTitlePatterns[s.Tool]
+		for j := range ws.Panes {
+			if ws.Panes[j].Type != "terminal" {
+				continue
+			}
+			title := surfaceTitles[paneKey{ws.Title, ws.Panes[j].Index}]
+			if !titleMatchesAI(title, patterns) {
+				continue
+			}
+			ws.Panes[j].Command = s.Command
+			consumed[ws.CWD] = true
+			break
+		}
+	}
+
+	// Pass 2: CWD-only fallback for sessions not matched in pass 1.
+	// Only fires if the CWD wasn't consumed by a title-confirmed match,
+	// AND the workspace has exactly one terminal pane (reduces ambiguity).
+	for i := range layout.Workspaces {
+		ws := &layout.Workspaces[i]
+		s, ok := sessions[ws.CWD]
+		if !ok || consumed[ws.CWD] {
+			continue
+		}
+		termCount := 0
+		termIdx := -1
+		for j := range ws.Panes {
+			if ws.Panes[j].Type == "terminal" {
+				termCount++
+				termIdx = j
+			}
+		}
+		if termCount == 1 {
+			ws.Panes[termIdx].Command = s.Command
+			consumed[ws.CWD] = true
+		}
+	}
+}
+
+// titleMatchesAI checks whether a surface title contains any of the
+// given AI tool name patterns (case-insensitive).
+func titleMatchesAI(title string, patterns []string) bool {
+	lower := strings.ToLower(title)
+	for _, p := range patterns {
+		if strings.Contains(lower, strings.ToLower(p)) {
+			return true
+		}
+	}
+	return false
 }
 
 // mergeUserEdits preserves user-edited fields from an existing TOML.

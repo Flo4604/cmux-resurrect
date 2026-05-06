@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.8.0] — 2026-05-06
+
+### Added
+- **Rename command** — rename saved layouts from CLI (`crex rename old new`) and TUI (`rename` with tab completion)
+- **Shell readiness detection** — replaced fixed-delay timing with file-sentinel polling before sending pane commands; guarantees the shell is interactive regardless of startup time (.zshrc, oh-my-zsh, starship, nvm, etc.)
+
+### Fixed
+- **Pane commands lost during shell init** — commands sent to newly created panes could be swallowed if the shell was still sourcing its profile; the new readiness probe retries automatically until the shell responds
+
+---
+
 ## [v1.7.0] — 2026-05-02
 
 ### Added
@@ -251,6 +262,7 @@ Initial public release.
 [v1.5.1]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.5.1
 [v1.5.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.5.0
 [v1.4.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.4.0
+[v1.8.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.8.0
 [v1.7.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.7.0
 [v1.6.2]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.6.2
 [v1.3.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.3.0

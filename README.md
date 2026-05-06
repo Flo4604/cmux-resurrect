@@ -159,6 +159,30 @@ crex export-to-md             # capture live state to Blueprint
 
 > For the full Blueprint format and CLI management (`bp add`, `bp list`, `bp toggle`), see [docs/blueprint.md](docs/blueprint.md).
 
+## 🤖 AI Session Auto-Detection
+
+`crex save` automatically detects running AI coding sessions and captures their session IDs. On restore, each session resumes exactly where you left off — no manual configuration needed.
+
+**Supported tools:**
+
+| Tool | Detection | Resume command |
+|------|-----------|----------------|
+| Claude Code | Process + terminal title | `claude --resume <session-id>` |
+| OpenCode | Process + terminal title | `opencode --session <session-id>` |
+| Codex | Process + terminal title | `codex resume <session-id>` |
+
+**How it works:**
+
+1. `crex save my-layout` — detects AI processes, matches them to panes by CWD and terminal title, writes the exact session ID into the layout
+2. `crex restore my-layout` — each pane resumes its specific session, not just "the last one"
+
+```sh
+crex save my-day          # AI sessions captured automatically
+crex restore my-day       # Claude/OpenCode/Codex resume mid-conversation
+```
+
+**Limitation:** In multi-pane (split) workspaces, AI sessions are detected when the pane shares the workspace's working directory. If a split pane has `cd`'d to a different project, detection cannot match it. For reliable detection, use one project directory per workspace.
+
 ## 📦 Template Gallery
 
 crex ships with 16 ready-to-use templates for common developer workflows.

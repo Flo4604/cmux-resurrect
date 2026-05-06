@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.9.0] — 2026-05-06
+
+### Added
+- **AI session auto-detection** — `crex save` now detects running Claude Code, OpenCode, and Codex sessions and auto-populates resume commands in the layout. On restore, each AI session resumes exactly where it left off — zero configuration needed.
+- **Dual-signal matching** — detection confirms both process CWD (via `ps`/`lsof`) and terminal surface title before assigning a resume command, eliminating false positives from shared directories
+- **Any-pane detection** — AI sessions are detected regardless of pane position (main pane, split right, split down, etc.)
+
+### Changed
+- **Shell readiness** — replaced file-sentinel probes with silent CWD polling via the backend API; no `touch` commands, no temp files, no shell history pollution
+- **Ghostty Send** — combined `input text` and `send key` into a single atomic AppleScript call, preventing commands from being lost when splits steal focus
+
+### Fixed
+- **Session IDs validated** — resume commands only include IDs matching `[a-zA-Z0-9_-]`, preventing malformed commands from corrupted session files
+- **Codex session format** — supports both legacy (rollout JSON) and current (dated JSONL) Codex session storage, bounded to 30 days for performance
+
+### Limitations
+- AI sessions in split panes are detected only when the pane shares the workspace's working directory. If a split pane has `cd`'d to a different directory, detection cannot match it (per-pane CWD is not captured). For reliable detection, use one project directory per workspace.
+
+---
+
 ## [v1.8.0] — 2026-05-06
 
 ### Added
@@ -262,6 +282,7 @@ Initial public release.
 [v1.5.1]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.5.1
 [v1.5.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.5.0
 [v1.4.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.4.0
+[v1.9.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.9.0
 [v1.8.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.8.0
 [v1.7.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.7.0
 [v1.6.2]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.6.2

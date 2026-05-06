@@ -168,27 +168,29 @@ func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWor
 
 	consumed := make(map[string]bool)
 
-	// Match AI sessions to the first terminal pane of each workspace.
-	// The first pane shares the workspace CWD, so CWD matching is reliable.
-	// AI tools in split panes (pane 1+) are not detected because per-pane
-	// CWDs are not captured — an acceptable limitation documented in the README.
+	// Match AI sessions to any terminal pane whose surface title confirms
+	// the tool is running. The CWD match is against the workspace CWD —
+	// this works when the AI pane shares the workspace directory (common).
+	// It won't match panes that cd'd elsewhere (per-pane CWD not captured).
 	for i := range layout.Workspaces {
 		ws := &layout.Workspaces[i]
-		if len(ws.Panes) == 0 || ws.Panes[0].Type != "terminal" {
-			continue
-		}
 		s, ok := sessions[ws.CWD]
 		if !ok || consumed[ws.CWD] {
 			continue
 		}
-		// Confirm via surface title — the first pane must show the AI tool.
-		title := surfaceTitles[paneKey{ws.Title, 0}]
 		patterns := aiTitlePatterns[s.Tool]
-		if !titleMatchesAI(title, patterns) {
-			continue
+		for j := range ws.Panes {
+			if ws.Panes[j].Type != "terminal" {
+				continue
+			}
+			title := surfaceTitles[paneKey{ws.Title, ws.Panes[j].Index}]
+			if !titleMatchesAI(title, patterns) {
+				continue
+			}
+			ws.Panes[j].Command = s.Command
+			consumed[ws.CWD] = true
+			break
 		}
-		ws.Panes[0].Command = s.Command
-		consumed[ws.CWD] = true
 	}
 }
 

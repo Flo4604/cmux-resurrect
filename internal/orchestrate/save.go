@@ -184,7 +184,10 @@ func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWor
 			if !titleMatchesAI(title, patterns) {
 				continue
 			}
-			ws.Panes[j].Command = s.Command
+			// Only set if no user-edited command exists (from mergeUserEdits).
+			if ws.Panes[j].Command == "" {
+				ws.Panes[j].Command = s.Command
+			}
 			consumed[ws.CWD] = true
 			break
 		}
@@ -207,7 +210,7 @@ func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWor
 				termIdx = j
 			}
 		}
-		if termCount == 1 {
+		if termCount == 1 && ws.Panes[termIdx].Command == "" {
 			ws.Panes[termIdx].Command = s.Command
 			consumed[ws.CWD] = true
 		}

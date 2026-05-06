@@ -41,26 +41,17 @@ func waitForShellReady(c client.Backend, workspaceRef, surfaceRef string) error 
 	defer os.Remove(sentinel)
 
 	deadline := time.Now().Add(ShellReadyTimeout)
-	probe := fmt.Sprintf("touch %s\\n", sentinel)
+	// Leading space hides the probe from shell history (HISTCONTROL/HIST_IGNORE_SPACE).
+	probe := fmt.Sprintf(" touch %s\\n", sentinel)
 
 	for time.Now().Before(deadline) {
 		_ = c.Send(workspaceRef, surfaceRef, probe)
 		time.Sleep(ShellReadyPoll)
 		if _, err := os.Stat(sentinel); err == nil {
-			// File exists — shell processed our probe. Confirm it's truly
-			// interactive by removing the file, sending a second probe,
-			// and verifying the shell creates it again.
-			os.Remove(sentinel)
+			// File exists — shell processed our probe and is interactive.
+			// Wait briefly for the prompt to finish rendering.
 			time.Sleep(ShellReadySettle)
-			_ = c.Send(workspaceRef, surfaceRef, probe)
-			time.Sleep(ShellReadyPoll)
-			if _, err := os.Stat(sentinel); err == nil {
-				// Double-confirmed: shell is interactive and processing commands.
-				time.Sleep(ShellReadySettle)
-				return nil
-			}
-			// Second probe failed — first might have been during init.
-			// Continue the loop and retry.
+			return nil
 		}
 	}
 	return fmt.Errorf("shell not ready after %v", ShellReadyTimeout)

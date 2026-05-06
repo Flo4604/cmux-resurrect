@@ -14,6 +14,12 @@ const (
 
 	// ShellReadyPoll is the interval between readiness probes.
 	ShellReadyPoll = 200 * time.Millisecond
+
+	// ShellReadySettle is a brief pause after the probe succeeds,
+	// giving the shell time to render its prompt before the real command
+	// is sent. Without this, the command can arrive between "probe executed"
+	// and "prompt displayed", causing it to be echoed but not interpreted.
+	ShellReadySettle = 300 * time.Millisecond
 )
 
 // waitForShellReady polls until the shell in the target pane is interactive.
@@ -41,7 +47,20 @@ func waitForShellReady(c client.Backend, workspaceRef, surfaceRef string) error 
 		_ = c.Send(workspaceRef, surfaceRef, probe)
 		time.Sleep(ShellReadyPoll)
 		if _, err := os.Stat(sentinel); err == nil {
-			return nil
+			// File exists — shell processed our probe. Confirm it's truly
+			// interactive by removing the file, sending a second probe,
+			// and verifying the shell creates it again.
+			os.Remove(sentinel)
+			time.Sleep(ShellReadySettle)
+			_ = c.Send(workspaceRef, surfaceRef, probe)
+			time.Sleep(ShellReadyPoll)
+			if _, err := os.Stat(sentinel); err == nil {
+				// Double-confirmed: shell is interactive and processing commands.
+				time.Sleep(ShellReadySettle)
+				return nil
+			}
+			// Second probe failed — first might have been during init.
+			// Continue the loop and retry.
 		}
 	}
 	return fmt.Errorf("shell not ready after %v", ShellReadyTimeout)

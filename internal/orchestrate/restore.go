@@ -194,6 +194,7 @@ func (r *Restorer) restoreWorkspace(ws model.Workspace, dryRun bool, result *Res
 	time.Sleep(DelayAfterSelect)
 
 	// 3. Create additional panes (splits) and send commands.
+	lastPane := len(ws.Panes) - 1
 	for i, pane := range ws.Panes {
 		if i == 0 {
 			// First pane is the default one created with the workspace.
@@ -203,6 +204,10 @@ func (r *Restorer) restoreWorkspace(ws model.Workspace, dryRun bool, result *Res
 				} else if err := r.Client.Send(ref, "", pane.Command+"\\n"); err != nil {
 					result.Errors = append(result.Errors, fmt.Sprintf("  pane %d send command: %v", i, err))
 				}
+			}
+			// If more panes follow, let the command settle before creating splits.
+			if i < lastPane {
+				time.Sleep(DelayAfterSplit)
 			}
 			continue
 		}
@@ -233,8 +238,11 @@ func (r *Restorer) restoreWorkspace(ws model.Workspace, dryRun bool, result *Res
 			} else if err := r.Client.Send(ref, surfaceRef, pane.Command+"\\n"); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("  pane %d send command: %v", i, err))
 			}
-		} else {
-			// No command — just let the shell settle.
+		}
+		// Let the command settle before creating the next split.
+		// Without this, NewSplit can shift focus before the enter key
+		// from the previous Send is fully processed.
+		if i < lastPane {
 			time.Sleep(DelayAfterSplit)
 		}
 	}

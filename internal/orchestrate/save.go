@@ -168,52 +168,27 @@ func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWor
 
 	consumed := make(map[string]bool)
 
-	// Pass 1: title-confirmed matches (high confidence).
+	// Match AI sessions to the first terminal pane of each workspace.
+	// The first pane shares the workspace CWD, so CWD matching is reliable.
+	// AI tools in split panes (pane 1+) are not detected because per-pane
+	// CWDs are not captured — an acceptable limitation documented in the README.
 	for i := range layout.Workspaces {
 		ws := &layout.Workspaces[i]
+		if len(ws.Panes) == 0 || ws.Panes[0].Type != "terminal" {
+			continue
+		}
 		s, ok := sessions[ws.CWD]
 		if !ok || consumed[ws.CWD] {
 			continue
 		}
+		// Confirm via surface title — the first pane must show the AI tool.
+		title := surfaceTitles[paneKey{ws.Title, 0}]
 		patterns := aiTitlePatterns[s.Tool]
-		for j := range ws.Panes {
-			if ws.Panes[j].Type != "terminal" {
-				continue
-			}
-			title := surfaceTitles[paneKey{ws.Title, ws.Panes[j].Index}]
-			if !titleMatchesAI(title, patterns) {
-				continue
-			}
-			// Only set if no user-edited command exists (from mergeUserEdits).
-			if ws.Panes[j].Command == "" {
-				ws.Panes[j].Command = s.Command
-			}
-			consumed[ws.CWD] = true
-			break
-		}
-	}
-
-	// Pass 2: CWD-only fallback for sessions not matched in pass 1.
-	// Only fires if the CWD wasn't consumed by a title-confirmed match,
-	// AND the workspace has exactly one terminal pane (reduces ambiguity).
-	for i := range layout.Workspaces {
-		ws := &layout.Workspaces[i]
-		s, ok := sessions[ws.CWD]
-		if !ok || consumed[ws.CWD] {
+		if !titleMatchesAI(title, patterns) {
 			continue
 		}
-		termCount := 0
-		termIdx := -1
-		for j := range ws.Panes {
-			if ws.Panes[j].Type == "terminal" {
-				termCount++
-				termIdx = j
-			}
-		}
-		if termCount == 1 && ws.Panes[termIdx].Command == "" {
-			ws.Panes[termIdx].Command = s.Command
-			consumed[ws.CWD] = true
-		}
+		ws.Panes[0].Command = s.Command
+		consumed[ws.CWD] = true
 	}
 }
 

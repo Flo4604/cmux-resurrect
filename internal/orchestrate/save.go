@@ -59,6 +59,13 @@ func (s *Saver) Save(name, description string) (*model.Layout, error) {
 		mergeUserEdits(layout, existing)
 	}
 
+	// Clear stale auto-detected commands before re-detection.
+	// mergeUserEdits preserves ALL commands from the previous TOML,
+	// including auto-detected AI resume commands that may no longer be
+	// valid. Clear those so detection starts fresh — user-set commands
+	// (like "npm run dev") are kept because they don't match AI patterns.
+	clearAutoDetectedCommands(layout)
+
 	// Auto-detect running AI CLI sessions and populate resume commands.
 	// Surface titles from the tree confirm which panes actually run an AI CLI,
 	// preventing false matches when multiple workspaces share a CWD.
@@ -123,6 +130,30 @@ func (s *Saver) buildWorkspace(tw client.TreeWorkspace) (*model.Workspace, error
 	}
 
 	return ws, nil
+}
+
+// aiResumePatterns matches commands that were auto-detected in a previous save.
+// These are cleared before re-detection to prevent stale commands from persisting.
+var aiResumePatterns = []string{
+	"claude --resume ",
+	"opencode --session ",
+	"codex resume ",
+}
+
+// clearAutoDetectedCommands removes AI resume commands that were populated by
+// a previous detection run. User-set commands (like "npm run dev") are kept.
+func clearAutoDetectedCommands(layout *model.Layout) {
+	for i := range layout.Workspaces {
+		for j := range layout.Workspaces[i].Panes {
+			cmd := layout.Workspaces[i].Panes[j].Command
+			for _, pattern := range aiResumePatterns {
+				if strings.HasPrefix(cmd, pattern) {
+					layout.Workspaces[i].Panes[j].Command = ""
+					break
+				}
+			}
+		}
+	}
 }
 
 // aiTitlePatterns is populated from the detector registry in the detect package.
@@ -206,7 +237,7 @@ func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWor
 		if len(sessions) == 0 {
 			continue
 		}
-		if len(ws.Panes) != 1 || ws.Panes[0].Type != "terminal" || ws.Panes[0].Command != "" {
+		if len(ws.Panes) != 1 || ws.Panes[0].Type != "terminal" {
 			continue
 		}
 		// Assign the first unconsumed session at this CWD.

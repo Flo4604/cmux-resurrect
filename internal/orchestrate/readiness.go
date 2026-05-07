@@ -1,6 +1,7 @@
 package orchestrate
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/drolosoft/cmux-resurrect/internal/client"
@@ -42,6 +43,5 @@ func waitForShellReady(c client.Backend, workspaceRef, surfaceRef string) error 
 		time.Sleep(ShellReadyPoll)
 	}
 
-	// Timeout — send the command anyway (best effort).
-	return nil
+	return fmt.Errorf("shell not ready after %v", ShellReadyTimeout)
 }

@@ -59,12 +59,13 @@ func (s *Saver) Save(name, description string) (*model.Layout, error) {
 		mergeUserEdits(layout, existing)
 	}
 
-	// Clear stale auto-detected commands before re-detection.
-	// mergeUserEdits preserves ALL commands from the previous TOML,
-	// including auto-detected AI resume commands that may no longer be
-	// valid. Clear those so detection starts fresh — user-set commands
-	// (like "npm run dev") are kept because they don't match AI patterns.
-	clearAutoDetectedCommands(layout)
+	// Clear stale auto-detected commands — but only for workspaces where
+	// the AI process is no longer running. If the process is still active,
+	// keep the existing command (its session ID was correct from the first
+	// detection; re-detecting could pick a different .jsonl file because
+	// Claude touches multiple session files in the background).
+	detected := detect.AISessions()
+	clearStaleCommands(layout, detected)
 
 	// Auto-detect running AI CLI sessions and populate resume commands.
 	// Surface titles from the tree confirm which panes actually run an AI CLI,
@@ -72,7 +73,7 @@ func (s *Saver) Save(name, description string) (*model.Layout, error) {
 	if os.Getenv("CREX_DEBUG") != "" {
 		debugDetection(layout, win.Workspaces)
 	}
-	applyDetectedSessions(layout, win.Workspaces)
+	applyDetectedSessions(layout, win.Workspaces, detected)
 
 	if err := s.Store.Save(name, layout); err != nil {
 		return nil, fmt.Errorf("save layout: %w", err)
@@ -167,15 +168,26 @@ var aiResumePatterns = []string{
 	"codex resume ",
 }
 
-// clearAutoDetectedCommands removes AI resume commands that were populated by
-// a previous detection run. User-set commands (like "npm run dev") are kept.
-func clearAutoDetectedCommands(layout *model.Layout) {
+// clearStaleCommands removes AI resume commands from workspaces where the
+// AI process is no longer running. Commands in workspaces where the process
+// IS still active are kept — their session IDs are correct from the first
+// detection and re-detection could pick a wrong .jsonl file.
+func clearStaleCommands(layout *model.Layout, detected detect.DetectedSessions) {
+	// Build set of CWDs where AI processes are currently running.
+	activeCWDs := make(map[string]bool)
+	for cwd := range detected.ByCWD {
+		activeCWDs[cwd] = true
+	}
+
 	for i := range layout.Workspaces {
 		for j := range layout.Workspaces[i].Panes {
 			cmd := layout.Workspaces[i].Panes[j].Command
 			for _, pattern := range aiResumePatterns {
 				if strings.HasPrefix(cmd, pattern) {
-					layout.Workspaces[i].Panes[j].Command = ""
+					// Only clear if no AI process is running at this CWD.
+					if !activeCWDs[layout.Workspaces[i].CWD] {
+						layout.Workspaces[i].Panes[j].Command = ""
+					}
 					break
 				}
 			}
@@ -198,8 +210,7 @@ var aiTitlePatterns = detect.TitlePatterns()
 //     that CWD in pass 1.
 //
 // Each CWD is consumed after the first match to prevent duplicates.
-func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWorkspace) {
-	detected := detect.AISessions()
+func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWorkspace, detected detect.DetectedSessions) {
 	if len(detected.ByCWD) == 0 {
 		return
 	}

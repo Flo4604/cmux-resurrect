@@ -5,6 +5,7 @@ package detect
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -75,8 +76,13 @@ type aiProcess struct {
 
 // listAIProcesses finds running claude, opencode, and codex processes
 // and resolves their working directories via lsof.
+// cmdTimeout is the maximum time for any subprocess (ps, lsof, sqlite3).
+const cmdTimeout = 5 * time.Second
+
 func listAIProcesses() []aiProcess {
-	out, err := exec.Command("ps", "axo", "pid,comm").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "ps", "axo", "pid,comm").Output()
 	if err != nil {
 		return nil
 	}
@@ -126,7 +132,9 @@ func listAIProcesses() []aiProcess {
 
 // cwdForPID returns the working directory of a process via lsof.
 func cwdForPID(pid string) string {
-	out, err := exec.Command("lsof", "-p", pid, "-Fn").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "lsof", "-p", pid, "-Fn").Output()
 	if err != nil {
 		return ""
 	}
@@ -212,7 +220,9 @@ func detectOpenCode(cwd string) *Session {
 
 	// Use the sqlite3 CLI to query the database in read-only mode.
 	query := `SELECT id FROM session WHERE directory = '` + escapeSQLite(cwd) + `' ORDER BY time_updated DESC LIMIT 1;`
-	out, err := exec.Command("sqlite3", "-readonly", dbPath, query).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "sqlite3", "-readonly", dbPath, query).Output()
 	if err != nil {
 		return nil
 	}
@@ -301,7 +311,7 @@ func detectCodexNew(sessDir, cwd string) *Session {
 
 		for _, f := range files {
 			id, dir := readCodexJSONLMeta(f.path)
-			if id != "" && dir == cwd {
+			if id != "" && dir == cwd && validSessionID.MatchString(id) {
 				return &Session{
 					Tool:    "codex",
 					CWD:     cwd,

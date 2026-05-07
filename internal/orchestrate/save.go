@@ -168,10 +168,9 @@ func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWor
 
 	consumed := make(map[string]bool)
 
-	// Match AI sessions to any terminal pane whose surface title confirms
-	// the tool is running. The CWD match is against the workspace CWD —
-	// this works when the AI pane shares the workspace directory (common).
-	// It won't match panes that cd'd elsewhere (per-pane CWD not captured).
+	// Pass 1: title-confirmed matches. The surface title must contain the
+	// tool's name (e.g. "Claude Code", "OC |"). CWD match is against the
+	// workspace CWD — works when the AI pane shares the workspace directory.
 	for i := range layout.Workspaces {
 		ws := &layout.Workspaces[i]
 		s, ok := sessions[ws.CWD]
@@ -190,6 +189,21 @@ func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWor
 			ws.Panes[j].Command = s.Command
 			consumed[ws.CWD] = true
 			break
+		}
+	}
+
+	// Pass 2: CWD-only fallback for tools that don't set a recognizable
+	// terminal title (e.g. Codex shows the project name, not "Codex").
+	// Restricted to single-pane workspaces to avoid ambiguity.
+	for i := range layout.Workspaces {
+		ws := &layout.Workspaces[i]
+		s, ok := sessions[ws.CWD]
+		if !ok || consumed[ws.CWD] {
+			continue
+		}
+		if len(ws.Panes) == 1 && ws.Panes[0].Type == "terminal" {
+			ws.Panes[0].Command = s.Command
+			consumed[ws.CWD] = true
 		}
 	}
 }

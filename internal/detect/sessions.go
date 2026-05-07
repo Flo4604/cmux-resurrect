@@ -36,9 +36,12 @@ type detector struct {
 // append a detector here — no other code changes needed.
 var registry = []detector{
 	{
-		Name:          "claude",
-		ProcessName:   "claude",
-		TitlePatterns: []string{"Claude Code", "claude"},
+		Name:        "claude",
+		ProcessName: "claude",
+		// Claude Code sets various titles depending on the active screen:
+		// "✳ Claude Code", "⠂ Claude Code", "✳ Available Commands", etc.
+		// The ✳/⠂/⠐ prefixes are Claude-specific status indicators.
+		TitlePatterns: []string{"Claude Code", "claude", "✳ ", "⠂ ", "⠐ "},
 		Detect:        detectClaude,
 	},
 	{

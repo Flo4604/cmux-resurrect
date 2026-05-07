@@ -216,7 +216,10 @@ func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWor
 			if ws.Panes[j].Type != "terminal" {
 				continue
 			}
-			title := surfaceTitles[paneKey{ws.Title, ws.Panes[j].Index}]
+			// Use slice position j as the pane index for title lookup,
+			// not ws.Panes[j].Index which can be 0 for all panes when
+			// the index field was omitted from TOML (omitempty + merge).
+			title := surfaceTitles[paneKey{ws.Title, j}]
 			for tool, patterns := range aiTitlePatterns {
 				if !titleMatchesAI(title, patterns) {
 					continue
@@ -260,7 +263,7 @@ func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWor
 			if ws.Panes[j].Type != "terminal" || ws.Panes[j].Command != "" {
 				continue
 			}
-			title := surfaceTitles[paneKey{ws.Title, ws.Panes[j].Index}]
+			title := surfaceTitles[paneKey{ws.Title, j}]
 			for tool, patterns := range aiTitlePatterns {
 				if !titleMatchesAI(title, patterns) {
 					continue

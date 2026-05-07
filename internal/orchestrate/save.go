@@ -125,14 +125,9 @@ func (s *Saver) buildWorkspace(tw client.TreeWorkspace) (*model.Workspace, error
 	return ws, nil
 }
 
-// aiTitlePatterns maps AI tool names to substrings found in terminal titles
-// when that tool is the active foreground process. These are set by the
-// programs themselves via ANSI escape codes — not user-configurable.
-var aiTitlePatterns = map[string][]string{
-	"claude":   {"Claude Code", "claude"},
-	"opencode": {"OpenCode", "opencode", "OC |"},
-	"codex":    {"Codex", "codex"},
-}
+// aiTitlePatterns is populated from the detector registry in the detect package.
+// Each tool's title patterns and detection logic are co-located there.
+var aiTitlePatterns = detect.TitlePatterns()
 
 // applyDetectedSessions scans for running AI CLI sessions (Claude Code,
 // OpenCode, Codex) and sets the resume command on matching panes.

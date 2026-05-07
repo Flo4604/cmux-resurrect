@@ -23,6 +23,48 @@ type Session struct {
 	Command string // full resume command (e.g. "claude --resume <id>")
 }
 
+// detector defines how to detect and resolve sessions for one AI tool.
+// Each tool registers its process name, title patterns, and detection logic.
+type detector struct {
+	Name          string   // tool name (used as Session.Tool)
+	ProcessName   string   // binary name as shown by ps (e.g. "claude")
+	TitlePatterns []string // substrings in terminal title confirming the tool
+	Detect        func(cwd string) *Session
+}
+
+// registry holds all known AI tool detectors. To add a new tool,
+// append a detector here — no other code changes needed.
+var registry = []detector{
+	{
+		Name:          "claude",
+		ProcessName:   "claude",
+		TitlePatterns: []string{"Claude Code", "claude"},
+		Detect:        detectClaude,
+	},
+	{
+		Name:          "opencode",
+		ProcessName:   "opencode",
+		TitlePatterns: []string{"OpenCode", "opencode", "OC |"},
+		Detect:        detectOpenCode,
+	},
+	{
+		Name:          "codex",
+		ProcessName:   "codex",
+		TitlePatterns: []string{"Codex", "codex"},
+		Detect:        detectCodex,
+	},
+}
+
+// TitlePatterns returns the title patterns for all registered tools,
+// keyed by tool name. Used by the save flow for pane matching.
+func TitlePatterns() map[string][]string {
+	result := make(map[string][]string, len(registry))
+	for _, d := range registry {
+		result[d.Name] = d.TitlePatterns
+	}
+	return result
+}
+
 // DetectedSessions holds detected AI CLI sessions indexed for lookup.
 type DetectedSessions struct {
 	ByCWD  map[string][]Session // CWD → sessions (multiple tools can share a CWD)
@@ -42,7 +84,13 @@ func AISessions() DetectedSessions {
 	// Deduplicate by (tool, cwd) to avoid redundant detection.
 	seen := make(map[string]bool)
 
-	procs := listAIProcesses()
+	// Build process name → detector lookup.
+	detectorByName := make(map[string]detector, len(registry))
+	for _, d := range registry {
+		detectorByName[d.ProcessName] = d
+	}
+
+	procs := listAIProcesses(detectorByName)
 	for _, p := range procs {
 		key := p.tool + ":" + p.cwd
 		if seen[key] {
@@ -50,15 +98,8 @@ func AISessions() DetectedSessions {
 		}
 		seen[key] = true
 
-		var s *Session
-		switch p.tool {
-		case "claude":
-			s = detectClaude(p.cwd)
-		case "opencode":
-			s = detectOpenCode(p.cwd)
-		case "codex":
-			s = detectCodex(p.cwd)
-		}
+		d := detectorByName[p.tool]
+		s := d.Detect(p.cwd)
 		if s != nil {
 			result.ByCWD[s.CWD] = append(result.ByCWD[s.CWD], *s)
 			result.ByTool[s.Tool] = append(result.ByTool[s.Tool], *s)
@@ -79,7 +120,7 @@ type aiProcess struct {
 // cmdTimeout is the maximum time for any subprocess (ps, lsof, sqlite3).
 const cmdTimeout = 5 * time.Second
 
-func listAIProcesses() []aiProcess {
+func listAIProcesses(detectors map[string]detector) []aiProcess {
 	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "ps", "axo", "pid,comm").Output()
@@ -100,28 +141,24 @@ func listAIProcesses() []aiProcess {
 		pid := fields[0]
 		comm := filepath.Base(fields[1])
 
-		switch comm {
-		case "claude":
+		if _, ok := detectors[comm]; ok {
 			pids = append(pids, struct {
 				pid  string
 				tool string
-			}{pid, "claude"})
-		case "opencode":
-			pids = append(pids, struct {
-				pid  string
-				tool string
-			}{pid, "opencode"})
-		case "codex":
-			pids = append(pids, struct {
-				pid  string
-				tool string
-			}{pid, "codex"})
+			}{pid, comm})
 		}
 	}
 
+	if len(pids) == 0 {
+		return nil
+	}
+
+	// Batch all PIDs into a single lsof call for performance.
+	cwds := batchCWDs(pids)
+
 	var result []aiProcess
 	for _, p := range pids {
-		cwd := cwdForPID(p.pid)
+		cwd := cwds[p.pid]
 		if cwd == "" {
 			continue
 		}
@@ -130,28 +167,45 @@ func listAIProcesses() []aiProcess {
 	return result
 }
 
-// cwdForPID returns the working directory of a process via lsof.
-func cwdForPID(pid string) string {
+// batchCWDs resolves working directories for multiple PIDs in a single lsof call.
+// lsof supports comma-separated PIDs: lsof -p pid1,pid2,pid3 -Fn.
+// Output groups are separated by "p<pid>" lines.
+func batchCWDs(pids []struct{ pid, tool string }) map[string]string {
+	result := make(map[string]string)
+	if len(pids) == 0 {
+		return result
+	}
+
+	// Build comma-separated PID list.
+	pidStrs := make([]string, len(pids))
+	for i, p := range pids {
+		pidStrs[i] = p.pid
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "lsof", "-p", pid, "-Fn").Output()
+	out, err := exec.CommandContext(ctx, "lsof", "-p", strings.Join(pidStrs, ","), "-Fn").Output()
 	if err != nil {
-		return ""
+		return result
 	}
-	// lsof -Fn outputs lines like "fcwd\nn/path/to/dir".
-	// We look for "fcwd" followed by "n<path>".
+
+	// Parse output: "p<pid>" starts a new process section,
+	// "fcwd" + "n<path>" gives the CWD for that process.
+	var currentPID string
 	lines := strings.Split(string(out), "\n")
 	for i, line := range lines {
+		if strings.HasPrefix(line, "p") {
+			currentPID = line[1:]
+		}
 		if line == "fcwd" && i+1 < len(lines) && strings.HasPrefix(lines[i+1], "n") {
-			cwd := lines[i+1][1:] // strip "n" prefix
-			// Resolve symlinks so /tmp matches /private/tmp on macOS.
+			cwd := lines[i+1][1:]
 			if resolved, err := filepath.EvalSymlinks(cwd); err == nil {
 				cwd = resolved
 			}
-			return cwd
+			result[currentPID] = cwd
 		}
 	}
-	return ""
+	return result
 }
 
 // detectClaude finds the active session ID for a Claude Code instance by CWD.

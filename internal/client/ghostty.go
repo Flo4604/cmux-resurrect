@@ -99,10 +99,13 @@ func parseTerminalIndex(ref string) (int, error) {
 	return idx, nil
 }
 
-// escapeAppleScript escapes backslashes and double quotes for safe AppleScript string interpolation.
+// escapeAppleScript escapes characters for safe AppleScript string interpolation.
 func escapeAppleScript(s string) string {
 	s = strings.ReplaceAll(s, `\`, `\\`)
 	s = strings.ReplaceAll(s, `"`, `\"`)
+	s = strings.ReplaceAll(s, "\n", `\n`)
+	s = strings.ReplaceAll(s, "\r", `\r`)
+	s = strings.ReplaceAll(s, "\t", `\t`)
 	return s
 }
 

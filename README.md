@@ -181,7 +181,9 @@ crex save my-day          # AI sessions captured automatically
 crex restore my-day       # Claude/OpenCode/Codex resume mid-conversation
 ```
 
-**Limitation:** In multi-pane (split) workspaces, AI sessions are detected when the pane shares the workspace's working directory. If a split pane has `cd`'d to a different project, detection cannot match it. For reliable detection, use one project directory per workspace.
+**Limitations:**
+- In multi-pane (split) workspaces, AI sessions are detected when the pane shares the workspace's working directory. If a split pane has `cd`'d to a different project, detection cannot match it. For reliable detection, use one project directory per workspace.
+- **Ghostty:** Multi-pane detection relies on CWD matching only. Ghostty's AppleScript API does not expose terminal titles (set by ANSI escape codes), so title-confirmed matching is unavailable. Single-pane workspaces are unaffected. This will improve when Ghostty exposes terminal titles in a future API update.
 
 ## 📦 Template Gallery
 

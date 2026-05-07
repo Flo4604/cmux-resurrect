@@ -231,27 +231,27 @@ func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWor
 		return nil
 	}
 
-	// Pass 1: CWD + title confirmed. Workspace CWD matches process CWD
-	// and the pane's surface title confirms the tool is running.
+	// Pass 1: Title-first. The pane title is the primary signal — it tells
+	// us exactly which tool is running. For each pane with a matching title,
+	// prefer a session whose CWD matches the workspace CWD; if none match,
+	// use any unconsumed session for that tool.
 	for i := range layout.Workspaces {
 		ws := &layout.Workspaces[i]
-		sessions := detected.ByCWD[ws.CWD]
-		if len(sessions) == 0 {
-			continue
-		}
 		for j := range ws.Panes {
 			if ws.Panes[j].Type != "terminal" {
 				continue
 			}
-			// Use slice position j as the pane index for title lookup,
-			// not ws.Panes[j].Index which can be 0 for all panes when
-			// the index field was omitted from TOML (omitempty + merge).
 			title := surfaceTitles[paneKey{ws.Title, j}]
 			for tool, patterns := range aiTitlePatterns {
 				if !titleMatchesAI(title, patterns) {
 					continue
 				}
-				if s := findSession(sessions, tool); s != nil {
+				// Prefer session matching workspace CWD (higher confidence).
+				if s := findSession(detected.ByCWD[ws.CWD], tool); s != nil {
+					ws.Panes[j].Command = s.Command
+					consumed[s.Command] = true
+				} else if s := findSession(detected.ByTool[tool], tool); s != nil {
+					// Fallback: any unconsumed session for this tool.
 					ws.Panes[j].Command = s.Command
 					consumed[s.Command] = true
 				}
@@ -260,45 +260,18 @@ func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWor
 		}
 	}
 
-	// Pass 2: CWD-only fallback (single-pane workspaces, no title needed).
+	// Pass 2: CWD-only fallback for tools that don't set a recognizable
+	// title (e.g. Codex). Restricted to single-pane workspaces.
 	for i := range layout.Workspaces {
 		ws := &layout.Workspaces[i]
+		if len(ws.Panes) != 1 || ws.Panes[0].Type != "terminal" || ws.Panes[0].Command != "" {
+			continue
+		}
 		sessions := detected.ByCWD[ws.CWD]
-		if len(sessions) == 0 {
-			continue
-		}
-		if len(ws.Panes) != 1 || ws.Panes[0].Type != "terminal" {
-			continue
-		}
-		// Assign the first unconsumed session at this CWD.
 		for _, s := range sessions {
 			if !consumed[s.Command] {
 				ws.Panes[0].Command = s.Command
 				consumed[s.Command] = true
-				break
-			}
-		}
-	}
-
-	// Pass 3: title-confirmed but CWD mismatch. The pane's title shows
-	// an AI tool, but the process CWD doesn't match the workspace CWD
-	// (e.g. user cd'd to ~ before launching the tool). Look up the session
-	// by tool name instead of CWD.
-	for i := range layout.Workspaces {
-		ws := &layout.Workspaces[i]
-		for j := range ws.Panes {
-			if ws.Panes[j].Type != "terminal" || ws.Panes[j].Command != "" {
-				continue
-			}
-			title := surfaceTitles[paneKey{ws.Title, j}]
-			for tool, patterns := range aiTitlePatterns {
-				if !titleMatchesAI(title, patterns) {
-					continue
-				}
-				if s := findSession(detected.ByTool[tool], tool); s != nil {
-					ws.Panes[j].Command = s.Command
-					consumed[s.Command] = true
-				}
 				break
 			}
 		}

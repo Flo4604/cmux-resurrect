@@ -22,17 +22,33 @@ type Session struct {
 	Command string // full resume command (e.g. "claude --resume <id>")
 }
 
+// DetectedSessions holds detected AI CLI sessions indexed for lookup.
+type DetectedSessions struct {
+	ByCWD  map[string][]Session // CWD → sessions (multiple tools can share a CWD)
+	ByTool map[string][]Session // tool name → sessions (fallback when CWDs don't match)
+}
+
 // AISessions scans for running AI CLI processes and resolves their session IDs.
-// Returns a map of CWD → Session for easy pane matching. If multiple sessions
-// share a CWD, the last one detected wins (rare edge case).
 //
 // This function never returns an error. If detection fails at any stage,
-// it returns whatever it found — possibly an empty map.
-func AISessions() map[string]Session {
-	result := make(map[string]Session)
+// it returns whatever it found — possibly empty maps.
+func AISessions() DetectedSessions {
+	result := DetectedSessions{
+		ByCWD:  make(map[string][]Session),
+		ByTool: make(map[string][]Session),
+	}
+
+	// Deduplicate by (tool, cwd) to avoid redundant detection.
+	seen := make(map[string]bool)
 
 	procs := listAIProcesses()
 	for _, p := range procs {
+		key := p.tool + ":" + p.cwd
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+
 		var s *Session
 		switch p.tool {
 		case "claude":
@@ -43,7 +59,8 @@ func AISessions() map[string]Session {
 			s = detectCodex(p.cwd)
 		}
 		if s != nil {
-			result[s.CWD] = *s
+			result.ByCWD[s.CWD] = append(result.ByCWD[s.CWD], *s)
+			result.ByTool[s.Tool] = append(result.ByTool[s.Tool], *s)
 		}
 	}
 	return result

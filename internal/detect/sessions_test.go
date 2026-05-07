@@ -129,10 +129,14 @@ func TestDetectClaude_WithSession(t *testing.T) {
 	}
 	defer os.RemoveAll(projectDir)
 
-	// Create a fake session file.
+	// Create a fake session file (must be >= 500 bytes to pass the size filter).
 	sessionID := "abc123-def456-789"
 	sessionFile := filepath.Join(projectDir, sessionID+".jsonl")
-	if err := os.WriteFile(sessionFile, []byte("test"), 0o644); err != nil {
+	content := make([]byte, 600)
+	for i := range content {
+		content[i] = 'x'
+	}
+	if err := os.WriteFile(sessionFile, content, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -158,12 +162,13 @@ func TestDetectClaude_PicksMostRecent(t *testing.T) {
 	}
 	defer os.RemoveAll(projectDir)
 
-	// Create two session files with different timestamps.
+	// Create two session files with different timestamps (>= 500 bytes each).
+	pad := make([]byte, 600)
 	old := filepath.Join(projectDir, "old-session.jsonl")
-	os.WriteFile(old, []byte("old"), 0o644)
+	os.WriteFile(old, pad, 0o644)
 	time.Sleep(10 * time.Millisecond)
 	recent := filepath.Join(projectDir, "recent-session.jsonl")
-	os.WriteFile(recent, []byte("new"), 0o644)
+	os.WriteFile(recent, pad, 0o644)
 
 	s := detectClaude(dir)
 	if s == nil {

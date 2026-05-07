@@ -201,11 +201,7 @@ func batchCWDs(pids []struct{ pid, tool string }) map[string]string {
 			currentPID = line[1:]
 		}
 		if line == "fcwd" && i+1 < len(lines) && strings.HasPrefix(lines[i+1], "n") {
-			cwd := lines[i+1][1:]
-			if resolved, err := filepath.EvalSymlinks(cwd); err == nil {
-				cwd = resolved
-			}
-			result[currentPID] = cwd
+			result[currentPID] = lines[i+1][1:]
 		}
 	}
 	return result
@@ -228,7 +224,11 @@ func detectClaude(cwd string) *Session {
 		return nil
 	}
 
-	// Find the most recently modified .jsonl file.
+	// Find the most recently modified .jsonl file. Skip files under 500
+	// bytes — Claude creates tiny placeholder sessions (236 bytes) when
+	// a --resume with a wrong ID fails. These placeholders can be more
+	// recent than the actual running session and must be ignored.
+	const minSessionSize = 500
 	type fileInfo struct {
 		name    string
 		modTime int64
@@ -240,6 +240,9 @@ func detectClaude(cwd string) *Session {
 		}
 		info, err := e.Info()
 		if err != nil {
+			continue
+		}
+		if info.Size() < minSessionSize {
 			continue
 		}
 		sessions = append(sessions, fileInfo{

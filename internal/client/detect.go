@@ -1,8 +1,10 @@
 package client
 
 import (
+	"context"
 	"os"
 	"os/exec"
+	"time"
 )
 
 // DetectedBackend identifies which terminal backend is available.
@@ -23,7 +25,9 @@ func Detect() DetectedBackend {
 	// pgrep -x "Ghostty" fails on macOS because the binary name is lowercase
 	// "ghostty" while the app bundle is "Ghostty.app". Use osascript to check
 	// via System Events, which matches the app name reliably.
-	out, err := exec.Command("osascript", "-e",
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "osascript", "-e",
 		`tell application "System Events" to (name of processes) contains "Ghostty"`).Output()
 	if err == nil && len(out) > 0 && out[0] == 't' { // "true\n"
 		return BackendGhostty

@@ -143,7 +143,12 @@ func cwdForPID(pid string) string {
 	lines := strings.Split(string(out), "\n")
 	for i, line := range lines {
 		if line == "fcwd" && i+1 < len(lines) && strings.HasPrefix(lines[i+1], "n") {
-			return lines[i+1][1:] // strip "n" prefix
+			cwd := lines[i+1][1:] // strip "n" prefix
+			// Resolve symlinks so /tmp matches /private/tmp on macOS.
+			if resolved, err := filepath.EvalSymlinks(cwd); err == nil {
+				cwd = resolved
+			}
+			return cwd
 		}
 	}
 	return ""

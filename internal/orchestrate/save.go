@@ -59,13 +59,12 @@ func (s *Saver) Save(name, description string) (*model.Layout, error) {
 		mergeUserEdits(layout, existing)
 	}
 
-	// Clear stale auto-detected commands — but only for workspaces where
-	// the AI process is no longer running. If the process is still active,
-	// keep the existing command (its session ID was correct from the first
-	// detection; re-detecting could pick a different .jsonl file because
-	// Claude touches multiple session files in the background).
+	// Clear all auto-detected commands before re-detection. Each save is
+	// a fresh snapshot — detection re-assigns from current state.
+	// (The 500-byte session file filter ensures re-detection picks the
+	// correct active session, not placeholder files from failed resumes.)
+	clearAutoDetectedCommands(layout)
 	detected := detect.AISessions()
-	clearStaleCommands(layout, detected)
 
 	// Auto-detect running AI CLI sessions and populate resume commands.
 	// Surface titles from the tree confirm which panes actually run an AI CLI,
@@ -168,26 +167,16 @@ var aiResumePatterns = []string{
 	"codex resume ",
 }
 
-// clearStaleCommands removes AI resume commands from workspaces where the
-// AI process is no longer running. Commands in workspaces where the process
-// IS still active are kept — their session IDs are correct from the first
-// detection and re-detection could pick a wrong .jsonl file.
-func clearStaleCommands(layout *model.Layout, detected detect.DetectedSessions) {
-	// Build set of CWDs where AI processes are currently running.
-	activeCWDs := make(map[string]bool)
-	for cwd := range detected.ByCWD {
-		activeCWDs[cwd] = true
-	}
-
+// clearAutoDetectedCommands removes all AI resume commands from the layout.
+// Called before re-detection so each save starts fresh. User-set commands
+// (like "npm run dev") are kept because they don't match AI patterns.
+func clearAutoDetectedCommands(layout *model.Layout) {
 	for i := range layout.Workspaces {
 		for j := range layout.Workspaces[i].Panes {
 			cmd := layout.Workspaces[i].Panes[j].Command
 			for _, pattern := range aiResumePatterns {
 				if strings.HasPrefix(cmd, pattern) {
-					// Only clear if no AI process is running at this CWD.
-					if !activeCWDs[layout.Workspaces[i].CWD] {
-						layout.Workspaces[i].Panes[j].Command = ""
-					}
+					layout.Workspaces[i].Panes[j].Command = ""
 					break
 				}
 			}

@@ -75,6 +75,38 @@ crex restore my-day                       # bring it all back
 
 Every tab, pane arrangement, CWD, pinned state, and startup command — captured and restored. Layouts are saved to `~/.config/crex/layouts/`.
 
+### Browser Panes
+
+cmux browser panes are fully supported — URLs are captured on save and restored as native browser panes:
+
+```sh
+crex save my-day          # browser panes captured with URLs
+crex show my-day          # shows 🌐 https://localhost:3000
+crex restore my-day       # browser panes restored natively
+```
+
+Ghostty fallback: since Ghostty has no browser pane concept, crex opens the URL in your default system browser via `open`.
+
+### Foreground Command Detection
+
+`crex save` detects the foreground process running in each terminal pane — not just AI sessions, but any interactive command:
+
+```
+crex❯ save my-day
+
+📦 my-day
+   7 🧩 drolosoft 📌
+   ├── claude --resume 90d6d97b... ★
+   └── →right 🌐 https://drolosoft.com/
+
+   🚀 Homepage 📌
+   ├── npm run dev
+   ├── →right nvim CLAUDE.md ★
+   └── →right 🌐 http://localhost:3000/
+```
+
+Detected commands are restored automatically. AI tools (Claude, OpenCode, Codex) get upgraded with session IDs; everything else (`npm run dev`, `nvim`, `htop`, `make watch`, etc.) is saved and re-executed as-is. Restored commands are prefixed with a space so they don't pollute your shell history.
+
 <p align="center"><img src="assets/save-my-day.png" alt="crex save my-day" width="700"></p>
 
 ## 🧙 Setup Wizard
@@ -132,23 +164,23 @@ Define your terminal layout in Obsidian-compatible Markdown. Import creates only
 - [x] main terminal: `codex resume --last` (focused)
 ```
 
-Works with any command — dev servers, test watchers, git UIs, or AI pair-programming sessions:
+Works with any command — dev servers, test watchers, git UIs, browser panels, or AI pair-programming sessions:
 
 ```markdown
 ## Projects
 **Icon | Name | Template | Pin | Path**
 
-- [x] | 🌐 | webapp    | dev     | yes | ~/projects/webapp
-- [x] | ⚙️ | api       | dev     | yes | ~/projects/api-server
-- [x] | 🧪 | tests     | go      | yes | ~/projects/testing
+- [x] | 🚀 | Homepage | fullstack | yes | ~/projects/webapp |
 
 ## Templates
 
-### dev
-- [x] main terminal (focused)
-- [x] split right: `npm run dev`
-- [x] split right: `lazygit`
+### fullstack
+- [x] main terminal: `npm run dev` (focused)
+- [x] split right browser: `http://localhost:3000`
+- [x] split down: `nvim CLAUDE.md`
 ```
+
+Browser panes use `split <direction> browser:` syntax — the URL goes in backticks. On cmux, this creates a native browser panel; on Ghostty, it opens the URL in the system browser.
 
 ```sh
 crex import-from-md           # create tabs/workspaces from Blueprint
@@ -173,8 +205,8 @@ crex export-to-md             # capture live state to Blueprint
 
 **How it works:**
 
-1. `crex save my-layout` — detects AI processes, matches them to panes by CWD and terminal title, writes the exact session ID into the layout
-2. `crex restore my-layout` — each pane resumes its specific session, not just "the last one"
+1. `crex save my-layout` — detects AI processes, matches them to panes by CWD and terminal title, writes the exact session ID into the layout. CWD-matched sessions get priority, preventing misassignment across workspaces.
+2. `crex restore my-layout` — each pane resumes its specific session, not just "the last one". Commands are sent with a leading space to keep your shell history clean.
 
 ```sh
 crex save my-day          # AI sessions captured automatically
@@ -246,6 +278,9 @@ All features — save, restore, import, export, templates, Blueprints — work i
 | 🖥️ | CLI commands only | **Interactive shell** — `crex❯` REPL with browse mode, number refs, history |
 | 📝 | Plugin configuration | **Blueprints** — Markdown files, Obsidian-compatible |
 | 🧩 | Manual pane recreation | **16 built-in templates** + custom Blueprints |
+| 🌐 | Terminal panes only | **Browser panes** — save and restore browser panels with URLs |
+| 🔍 | No process detection | **Foreground detection** — auto-captures running commands (npm, nvim, htop, etc.) |
+| 🤖 | No AI support | **AI session resume** — Claude, OpenCode, Codex resume mid-conversation |
 | 📥 | One-way restore | **Bidirectional** — import from and export to Markdown |
 | 👁️ | Execute immediately | **Dry-run mode** — preview every command first |
 | ⏱️ | Manual saves | **Watch daemon** — background auto-save, deduped, shell hooks, zero-maintenance |

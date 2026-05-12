@@ -27,6 +27,10 @@ type Backend interface {
 	// NewSplit creates a new split pane in a workspace, returning the new surface ref.
 	NewSplit(direction, workspaceRef string) (string, error)
 
+	// NewPane creates a new pane in a workspace, supporting type (terminal/browser) and URL.
+	// Returns the new surface ref.
+	NewPane(opts NewPaneOpts) (string, error)
+
 	// FocusPane focuses a specific pane in a workspace.
 	FocusPane(paneRef, workspaceRef string) error
 

@@ -40,7 +40,12 @@ func (s *Saver) Save(name, description string) (*model.Layout, error) {
 		SavedAt:     time.Now().UTC(),
 	}
 
-	for _, tw := range win.Workspaces {
+	// Deduplicate workspaces with the same title. cmux can report ghost
+	// workspaces (stale refs with no tty). When duplicates exist, keep the
+	// one with the most panes that have ttys.
+	workspaces := deduplicateWorkspaces(win.Workspaces)
+
+	for _, tw := range workspaces {
 		ws, err := s.buildWorkspace(tw)
 		if err != nil {
 			// Log but don't fail — isolate errors per workspace.
@@ -139,6 +144,51 @@ func (s *Saver) buildWorkspace(tw client.TreeWorkspace) (*model.Workspace, error
 	}
 
 	return ws, nil
+}
+
+// deduplicateWorkspaces removes ghost workspaces that share a title with
+// a real workspace. When duplicates exist, the workspace with the most
+// panes that have ttys wins. Ghost workspaces in cmux are stale refs that
+// appear in the tree but have no active terminals.
+func deduplicateWorkspaces(workspaces []client.TreeWorkspace) []client.TreeWorkspace {
+	type candidate struct {
+		index    int
+		ttyCount int
+	}
+
+	best := make(map[string]candidate) // title → best candidate
+	for i, ws := range workspaces {
+		ttys := 0
+		for _, p := range ws.Panes {
+			for _, s := range p.Surfaces {
+				if s.TTY != "" {
+					ttys++
+				}
+			}
+		}
+		prev, exists := best[ws.Title]
+		if !exists || ttys > prev.ttyCount {
+			best[ws.Title] = candidate{index: i, ttyCount: ttys}
+		}
+	}
+
+	// If no duplicates found, return as-is (fast path).
+	if len(best) == len(workspaces) {
+		return workspaces
+	}
+
+	// Build deduplicated list preserving original order.
+	kept := make(map[int]bool, len(best))
+	for _, c := range best {
+		kept[c.index] = true
+	}
+	var result []client.TreeWorkspace
+	for i, ws := range workspaces {
+		if kept[i] {
+			result = append(result, ws)
+		}
+	}
+	return result
 }
 
 // debugDetection prints detection diagnostics when CREX_DEBUG is set.

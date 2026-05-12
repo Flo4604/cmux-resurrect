@@ -176,6 +176,50 @@ func TestParseTemplatePaneLine_FocusTargetDefault(t *testing.T) {
 	}
 }
 
+func TestParseTemplatePaneLine_BrowserSplit(t *testing.T) {
+	md := `## Projects
+**Icon | Name | Template | Pin | Path**
+
+## Templates
+
+### fullstack
+- [x] main terminal: ` + "`make dev`" + ` (focused)
+- [x] split right browser: ` + "`http://localhost:3000`" + `
+- [x] split down: ` + "`lazygit`" + `
+`
+	path := writeTempMD(t, md)
+	wf, err := Parse(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	tmpl, ok := wf.Templates["fullstack"]
+	if !ok {
+		t.Fatal("missing 'fullstack' template")
+	}
+	if len(tmpl.Panes) != 3 {
+		t.Fatalf("panes = %d, want 3", len(tmpl.Panes))
+	}
+
+	// Pane 1: split right browser with URL.
+	p1 := tmpl.Panes[1]
+	if p1.Split != "right" {
+		t.Errorf("pane 1 split = %q, want 'right'", p1.Split)
+	}
+	if p1.Type != "browser" {
+		t.Errorf("pane 1 type = %q, want 'browser'", p1.Type)
+	}
+	if p1.Command != "http://localhost:3000" {
+		t.Errorf("pane 1 command = %q, want 'http://localhost:3000'", p1.Command)
+	}
+
+	// Pane 2: regular terminal split.
+	p2 := tmpl.Panes[2]
+	if p2.Type != "terminal" {
+		t.Errorf("pane 2 type = %q, want 'terminal'", p2.Type)
+	}
+}
+
 func TestParse_NonexistentFile(t *testing.T) {
 	_, err := Parse("/tmp/does-not-exist-cmx.md")
 	if err == nil {

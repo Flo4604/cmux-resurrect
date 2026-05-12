@@ -187,6 +187,10 @@ func parseTemplatePaneLine(line string) (model.TemplatePan, bool) {
 			tp.Split = strings.TrimSuffix(parts[1], ":")
 		}
 		tp.Type = "terminal"
+		// Check for type after direction: "split right browser:" → type=browser
+		if len(parts) >= 3 {
+			tp.Type = strings.TrimSuffix(parts[2], ":")
+		}
 	default:
 		tp.Type = "terminal"
 	}

@@ -10,14 +10,14 @@
 ### fullstack
 - [x] main terminal: `npm run dev` (focused)
 - [x] split right browser: `http://localhost:3000`
-- [x] split down: `git log --oneline -20`
+- [x] split down: `less package.json`
 
 ### monitor
-- [x] main terminal: `top` (focused)
+- [x] main terminal: `top -s 5` (focused)
 - [x] split right browser: `http://localhost:3000`
-- [x] split down: `tail -f /var/log/system.log`
+- [x] split down: `less README.md`
 
 ### tdd
 - [x] main terminal (focused)
 - [x] split right: `npm run lint`
-- [x] split down: `git status`
+- [x] split down: `less tsconfig.json`

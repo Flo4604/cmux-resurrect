@@ -64,6 +64,10 @@ func (s *Saver) Save(name, description string) (*model.Layout, error) {
 	// (The 500-byte session file filter ensures re-detection picks the
 	// correct active session, not placeholder files from failed resumes.)
 	clearAutoDetectedCommands(layout)
+	// Clear bare AI tool names set by foreground detection (e.g. "claude",
+	// "opencode", "codex"). AI detection re-assigns these with full session
+	// resume commands. Without this, the bare names block Pass 2 matching.
+	clearBareAICommands(layout)
 	detected := detect.AISessions()
 
 	// Auto-detect running AI CLI sessions and populate resume commands.
@@ -185,6 +189,25 @@ func clearAutoDetectedCommands(layout *model.Layout) {
 					layout.Workspaces[i].Panes[j].Command = ""
 					break
 				}
+			}
+		}
+	}
+}
+
+// aiProcessNames contains bare AI tool binary names (e.g. "claude", "opencode").
+// These are cleared before AI detection so the specialized detector can assign
+// full resume commands instead.
+var aiProcessNames = detect.ProcessNames()
+
+// clearBareAICommands removes commands that are just a bare AI tool name
+// (set by foreground detection). This allows the AI detection pass to
+// handle these panes with proper session resolution.
+func clearBareAICommands(layout *model.Layout) {
+	for i := range layout.Workspaces {
+		for j := range layout.Workspaces[i].Panes {
+			cmd := layout.Workspaces[i].Panes[j].Command
+			if aiProcessNames[cmd] {
+				layout.Workspaces[i].Panes[j].Command = ""
 			}
 		}
 	}

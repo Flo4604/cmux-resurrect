@@ -65,6 +65,7 @@ type TreeSurface struct {
 	Selected       bool    `json:"selected"`
 	SelectedInPane bool    `json:"selected_in_pane"`
 	Here           bool    `json:"here"`
+	TTY            string  `json:"tty"`
 }
 
 // SidebarState holds parsed sidebar-state for a workspace.

@@ -36,6 +36,32 @@ func completeLayoutNames(cmd *cobra.Command, args []string, toComplete string) (
 	return names, cobra.ShellCompDirectiveNoFileComp
 }
 
+// completeWorkspaceNames provides dynamic completion of workspace titles within a layout.
+// Used by: restore (second positional arg).
+func completeWorkspaceNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) != 1 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	store, err := newStore()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	layout, err := store.Load(args[0])
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	names := make([]string, 0, len(layout.Workspaces))
+	for _, ws := range layout.Workspaces {
+		paneCount := len(ws.Panes)
+		desc := fmt.Sprintf("%d %s", paneCount, unitName(paneCount))
+		names = append(names, fmt.Sprintf("%s\t%s", ws.Title, desc))
+	}
+	return names, cobra.ShellCompDirectiveNoFileComp
+}
+
 // completeTemplateNames provides dynamic completion of gallery template names.
 // Used by: template show.
 func completeTemplateNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

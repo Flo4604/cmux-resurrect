@@ -53,6 +53,9 @@ func (i Item) Desc() string {
 		}
 		return fmt.Sprintf("%d workspaces", i.Workspaces)
 	case KindWorkspace:
+		if i.Description != "" {
+			return i.Description
+		}
 		if i.Workspaces == 1 {
 			return "1 pane"
 		}
@@ -74,10 +77,15 @@ func ItemsFromLayouts(metas []model.LayoutMeta) []Item {
 			if i < len(m.WorkspacePanes) {
 				panes = m.WorkspacePanes[i]
 			}
+			summary := ""
+			if i < len(m.WorkspaceSummaries) {
+				summary = m.WorkspaceSummaries[i]
+			}
 			subItems = append(subItems, Item{
-				Kind:       KindWorkspace,
-				Name:       title,
-				Workspaces: panes,
+				Kind:        KindWorkspace,
+				Name:        title,
+				Description: summary,
+				Workspaces:  panes,
 			})
 		}
 		items[idx] = Item{

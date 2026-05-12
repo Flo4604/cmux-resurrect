@@ -158,32 +158,32 @@ func runRestore(cmd *cobra.Command, args []string) error {
 			case c == "":
 				fmt.Println()
 			case strings.HasPrefix(c, "#"):
-				fmt.Println(yellowStyle.Render(c))
+				fmt.Println("  " + yellowStyle.Render(c))
 			default:
 				// Color the cmux prefix dim, highlight the action
 				parts := strings.SplitN(c, " ", 3)
 				if len(parts) >= 2 {
-					fmt.Printf("%s %s", dimStyle.Render(parts[0]), cyanStyle.Render(parts[1]))
+					fmt.Printf("  %s %s", dimStyle.Render(parts[0]), cyanStyle.Render(parts[1]))
 					if len(parts) == 3 {
 						fmt.Printf(" %s", dimStyle.Render(parts[2]))
 					}
 					fmt.Println()
 				} else {
-					fmt.Println(c)
+					fmt.Println("  " + c)
 				}
 			}
 		}
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprintf(os.Stderr, "%s\n\n",
+		fmt.Fprintf(os.Stderr, "  %s\n\n",
 			greenStyle.Render(fmt.Sprintf("✅ %d commands for %d %s", len(result.Commands)-countBlanks(result.Commands), result.WorkspacesTotal, unitName(result.WorkspacesTotal))))
 		return nil
 	}
 
 	fmt.Fprintln(os.Stderr)
 	if result.WorkspacesClosed > 0 {
-		fmt.Fprintf(os.Stderr, "%s\n", dimStyle.Render(fmt.Sprintf("  Closed %d existing %s", result.WorkspacesClosed, unitName(result.WorkspacesClosed))))
+		fmt.Fprintf(os.Stderr, "  %s\n", dimStyle.Render(fmt.Sprintf("Closed %d existing %s", result.WorkspacesClosed, unitName(result.WorkspacesClosed))))
 	}
-	fmt.Fprintf(os.Stderr, "%s\n\n",
+	fmt.Fprintf(os.Stderr, "  %s\n\n",
 		greenStyle.Render(fmt.Sprintf("✅ Restored %d/%d %s", result.WorkspacesOK, result.WorkspacesTotal, unitName(result.WorkspacesTotal))))
 	if len(result.Errors) > 0 {
 		fmt.Fprintf(os.Stderr, "%s\n", yellowStyle.Render("⚠️  Errors:"))

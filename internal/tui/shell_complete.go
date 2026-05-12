@@ -231,6 +231,21 @@ func (ce *completionEngine) Complete(input string) completionResult {
 			// Still typing the command name.
 			return ce.level1Completions(trimmed)
 		}
+
+		// restore: second arg is workspace name within the layout.
+		if first == "restore" && len(parts) >= 2 {
+			trailingSpace := strings.HasSuffix(trimmed, " ")
+			if len(parts) == 2 && trailingSpace {
+				// "restore default " → complete workspace names.
+				return ce.workspaceArgCompletions(parts[1], "", first+" "+parts[1]+" ")
+			}
+			if len(parts) >= 3 {
+				// "restore default tra" → filter workspace names.
+				wsPartial := strings.Join(parts[2:], " ")
+				return ce.workspaceArgCompletions(parts[1], wsPartial, first+" "+parts[1]+" ")
+			}
+		}
+
 		// Command complete, suggest arguments.
 		prefix := first + " "
 		argPartial := ""
@@ -418,6 +433,36 @@ func (ce *completionEngine) layoutItems() []completionItem {
 	ce.layoutCache = items
 	ce.layoutCacheAt = time.Now()
 	return items
+}
+
+func (ce *completionEngine) workspaceItems(layoutName string) []completionItem {
+	if ce.store == nil {
+		return nil
+	}
+	layout, err := ce.store.Load(layoutName)
+	if err != nil {
+		return nil
+	}
+	items := make([]completionItem, len(layout.Workspaces))
+	for i, ws := range layout.Workspaces {
+		desc := fmt.Sprintf("%d panes", len(ws.Panes))
+		items[i] = completionItem{ws.Title, "📋", desc}
+	}
+	return items
+}
+
+func (ce *completionEngine) workspaceArgCompletions(layoutName, partial, prefix string) completionResult {
+	argItems := ce.workspaceItems(layoutName)
+	lowerPartial := strings.ToLower(strings.TrimSpace(partial))
+	var items []completionItem
+	var values []string
+	for _, a := range argItems {
+		if lowerPartial == "" || strings.Contains(strings.ToLower(a.value), lowerPartial) {
+			items = append(items, a)
+			values = append(values, prefix+a.value)
+		}
+	}
+	return completionResult{values: values, items: items}
 }
 
 func (ce *completionEngine) templateItems() []completionItem {

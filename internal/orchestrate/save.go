@@ -64,10 +64,6 @@ func (s *Saver) Save(name, description string) (*model.Layout, error) {
 	// (The 500-byte session file filter ensures re-detection picks the
 	// correct active session, not placeholder files from failed resumes.)
 	clearAutoDetectedCommands(layout)
-	// Clear bare AI tool names set by foreground detection (e.g. "claude",
-	// "opencode", "codex"). AI detection re-assigns these with full session
-	// resume commands. Without this, the bare names block Pass 2 matching.
-	clearBareAICommands(layout)
 	detected := detect.AISessions()
 
 	// Auto-detect running AI CLI sessions and populate resume commands.
@@ -293,7 +289,12 @@ func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWor
 	// title (e.g. Codex). Restricted to single-pane workspaces.
 	for i := range layout.Workspaces {
 		ws := &layout.Workspaces[i]
-		if len(ws.Panes) != 1 || ws.Panes[0].Type != "terminal" || ws.Panes[0].Command != "" {
+		if len(ws.Panes) != 1 || ws.Panes[0].Type != "terminal" {
+			continue
+		}
+		// Allow upgrade if the command is empty or a bare AI tool name
+		// (set by foreground detection, e.g. "claude" without --resume).
+		if ws.Panes[0].Command != "" && !aiProcessNames[ws.Panes[0].Command] {
 			continue
 		}
 		sessions := detected.ByCWD[ws.CWD]

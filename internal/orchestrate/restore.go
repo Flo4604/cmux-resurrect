@@ -3,6 +3,7 @@ package orchestrate
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/drolosoft/cmux-resurrect/internal/client"
@@ -47,17 +48,37 @@ func (r *Restorer) Restore(name string, dryRun bool, mode RestoreMode, workspace
 	}
 
 	if workspaceFilter != "" {
-		var filtered []model.Workspace
-		for _, ws := range layout.Workspaces {
-			if ws.Title == workspaceFilter {
-				filtered = append(filtered, ws)
+		// Try exact match first (case-insensitive).
+		var exactMatch *model.Workspace
+		var substringMatches []model.Workspace
+		filterLower := strings.ToLower(workspaceFilter)
+
+		for i, ws := range layout.Workspaces {
+			titleLower := strings.ToLower(ws.Title)
+			if titleLower == filterLower {
+				exactMatch = &layout.Workspaces[i]
 				break
 			}
+			if strings.Contains(titleLower, filterLower) {
+				substringMatches = append(substringMatches, ws)
+			}
 		}
-		if len(filtered) == 0 {
+
+		switch {
+		case exactMatch != nil:
+			layout.Workspaces = []model.Workspace{*exactMatch}
+		case len(substringMatches) == 1:
+			layout.Workspaces = substringMatches
+		case len(substringMatches) == 0:
 			return nil, fmt.Errorf("workspace %q not found in layout %q", workspaceFilter, name)
+		default:
+			titles := make([]string, len(substringMatches))
+			for i, ws := range substringMatches {
+				titles[i] = fmt.Sprintf("%q", ws.Title)
+			}
+			return nil, fmt.Errorf("%q matches multiple workspaces in layout %q: %s",
+				workspaceFilter, name, strings.Join(titles, ", "))
 		}
-		layout.Workspaces = filtered
 	}
 
 	if !dryRun {

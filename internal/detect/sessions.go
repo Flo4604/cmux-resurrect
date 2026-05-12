@@ -58,6 +58,17 @@ var registry = []detector{
 	},
 }
 
+// ProcessNames returns the set of binary names for all registered AI tools.
+// Used by the save flow to distinguish AI tool commands from generic
+// foreground commands (e.g. "claude" vs "htop").
+func ProcessNames() map[string]bool {
+	result := make(map[string]bool, len(registry))
+	for _, d := range registry {
+		result[d.ProcessName] = true
+	}
+	return result
+}
+
 // TitlePatterns returns the title patterns for all registered tools,
 // keyed by tool name. Used by the save flow for pane matching.
 func TitlePatterns() map[string][]string {

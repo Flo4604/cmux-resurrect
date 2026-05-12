@@ -1,23 +1,23 @@
 ## Projects
 **Icon | Name | Template | Pin | Path**
 
-- [x] | 🔧 | API Server | fullstack | yes | ~/projects/api-server |
+- [x] | 🚀 | Web App | fullstack | yes | ~/projects/webapp |
 - [x] | 📊 | Dashboard | monitor | yes | ~/projects/dashboard |
-- [x] | 🧪 | Test Lab | tdd | no | ~/projects/test-lab |
+- [x] | 🧪 | Tests | tdd | no | ~/projects/webapp |
 
 ## Templates
 
 ### fullstack
-- [x] main terminal: `make dev` (focused)
+- [x] main terminal: `npm run dev` (focused)
 - [x] split right browser: `http://localhost:3000`
-- [x] split down: `lazygit`
+- [x] split down: `npx nodemon --watch src`
 
 ### monitor
-- [x] main terminal: `htop` (focused)
-- [x] split right browser: `http://localhost:9090`
-- [x] split down: `watch -n 2 'curl -s localhost:3000/health | jq .'`
+- [x] main terminal: `top` (focused)
+- [x] split right browser: `http://localhost:3000`
+- [x] split down: `tail -f /var/log/system.log`
 
 ### tdd
-- [x] main terminal: `vim .` (focused)
-- [x] split right: `go test ./... -v -count=1`
-- [x] split down: `watch -n 5 'wc -l **/*.go | tail -1'`
+- [x] main terminal (focused)
+- [x] split right: `npm test -- --watch`
+- [x] split down: `git log --oneline -20`

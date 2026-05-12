@@ -223,6 +223,63 @@ func TestRestore_BrowserPane_DryRun(t *testing.T) {
 	}
 }
 
+func TestRestore_MixedTerminalBrowserPanes_DryRun(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := persist.NewFileStore(dir)
+
+	layout := &model.Layout{
+		Name:    "mixed-test",
+		Version: 1,
+		SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{
+				Title:  "0 fullstack",
+				CWD:    "/tmp/project",
+				Index:  0,
+				Active: true,
+				Panes: []model.Pane{
+					{Type: "terminal", Focus: true, Command: "npm run dev"},
+					{Type: "browser", Split: "right", URL: "https://localhost:3000"},
+					{Type: "terminal", Split: "down", Command: "npm run test"},
+				},
+			},
+		},
+	}
+	_ = store.Save("mixed-test", layout)
+
+	mc := &mockClient{sidebarCWDs: map[string]string{}}
+	restorer := &Restorer{Client: mc, Store: store}
+
+	result, err := restorer.Restore("mixed-test", true, RestoreModeAdd, "")
+	if err != nil {
+		t.Fatalf("restore dry-run: %v", err)
+	}
+
+	hasSend := false
+	hasBrowser := false
+	hasSplit := false
+	for _, cmd := range result.Commands {
+		if strings.Contains(cmd, "npm run dev") {
+			hasSend = true
+		}
+		if strings.Contains(cmd, "browser") && strings.Contains(cmd, "https://localhost:3000") {
+			hasBrowser = true
+		}
+		if strings.Contains(cmd, "new-split") && strings.Contains(cmd, "down") {
+			hasSplit = true
+		}
+	}
+	if !hasSend {
+		t.Error("missing terminal command 'npm run dev'")
+	}
+	if !hasBrowser {
+		t.Error("missing browser pane command with URL")
+	}
+	if !hasSplit {
+		t.Error("missing terminal split 'down' for third pane")
+	}
+}
+
 func containsStr(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {

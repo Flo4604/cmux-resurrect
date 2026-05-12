@@ -63,7 +63,9 @@ func (tu *TemplateUser) dryRun(panes []model.Pane, opts TemplateUseOpts, title s
 
 	for i, pane := range panes {
 		if i == 0 {
-			if pane.Command != "" {
+			if pane.Type == "browser" && pane.Command != "" {
+				result.Commands = append(result.Commands, f.FmtSend(ref, fmt.Sprintf("open %q", pane.Command)))
+			} else if pane.Command != "" {
 				result.Commands = append(result.Commands, f.FmtSend(ref, pane.Command))
 			}
 			continue
@@ -76,9 +78,13 @@ func (tu *TemplateUser) dryRun(panes []model.Pane, opts TemplateUseOpts, title s
 		if direction == "" {
 			direction = "right"
 		}
-		result.Commands = append(result.Commands, f.FmtNewSplit(direction, ref))
-		if pane.Command != "" {
-			result.Commands = append(result.Commands, f.FmtSend(ref, pane.Command))
+		if pane.Type == "browser" {
+			result.Commands = append(result.Commands, f.FmtNewPane(pane.Type, direction, ref, pane.Command))
+		} else {
+			result.Commands = append(result.Commands, f.FmtNewSplit(direction, ref))
+			if pane.Command != "" {
+				result.Commands = append(result.Commands, f.FmtSend(ref, pane.Command))
+			}
 		}
 	}
 
@@ -110,7 +116,14 @@ func (tu *TemplateUser) execute(panes []model.Pane, opts TemplateUseOpts, title 
 	// 3. Create splits and send commands.
 	for i, pane := range panes {
 		if i == 0 {
-			if pane.Command != "" {
+			if pane.Type == "browser" && pane.Command != "" {
+				// First pane is always terminal; open URL as fallback.
+				if err := waitForShellReady(tu.Client, ref, ""); err != nil {
+					tu.progress(fmt.Sprintf("pane %d shell not ready: %v", i, err))
+				} else if err := tu.Client.Send(ref, "", fmt.Sprintf("open %q\\n", pane.Command)); err != nil {
+					tu.progress(fmt.Sprintf("pane %d open url: %v", i, err))
+				}
+			} else if pane.Command != "" {
 				if err := waitForShellReady(tu.Client, ref, ""); err != nil {
 					tu.progress(fmt.Sprintf("pane %d shell not ready: %v", i, err))
 				} else if err := tu.Client.Send(ref, "", pane.Command+"\\n"); err != nil {
@@ -133,20 +146,35 @@ func (tu *TemplateUser) execute(panes []model.Pane, opts TemplateUseOpts, title 
 		if direction == "" {
 			direction = "right"
 		}
-		surfaceRef, err := tu.Client.NewSplit(direction, ref)
-		if err != nil {
-			tu.progress(fmt.Sprintf("pane %d split: %v", i, err))
-			continue
-		}
 
-		if pane.Command != "" {
-			if err := waitForShellReady(tu.Client, ref, surfaceRef); err != nil {
-				tu.progress(fmt.Sprintf("pane %d shell not ready: %v", i, err))
-			} else if err := tu.Client.Send(ref, surfaceRef, pane.Command+"\\n"); err != nil {
-				tu.progress(fmt.Sprintf("pane %d send: %v", i, err))
+		if pane.Type == "browser" {
+			// Browser panes use NewPane instead of NewSplit.
+			_, err := tu.Client.NewPane(client.NewPaneOpts{
+				Type:         "browser",
+				Direction:    direction,
+				WorkspaceRef: ref,
+				URL:          pane.Command,
+			})
+			if err != nil {
+				tu.progress(fmt.Sprintf("pane %d new-pane browser: %v", i, err))
+				continue
 			}
 		} else {
-			time.Sleep(DelayAfterSplit)
+			surfaceRef, err := tu.Client.NewSplit(direction, ref)
+			if err != nil {
+				tu.progress(fmt.Sprintf("pane %d split: %v", i, err))
+				continue
+			}
+
+			if pane.Command != "" {
+				if err := waitForShellReady(tu.Client, ref, surfaceRef); err != nil {
+					tu.progress(fmt.Sprintf("pane %d shell not ready: %v", i, err))
+				} else if err := tu.Client.Send(ref, surfaceRef, pane.Command+"\\n"); err != nil {
+					tu.progress(fmt.Sprintf("pane %d send: %v", i, err))
+				}
+			} else {
+				time.Sleep(DelayAfterSplit)
+			}
 		}
 	}
 

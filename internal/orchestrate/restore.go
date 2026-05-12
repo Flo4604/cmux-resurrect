@@ -203,13 +203,13 @@ func (r *Restorer) restoreWorkspace(ws model.Workspace, dryRun bool, result *Res
 				// open the URL via the shell as a fallback.
 				if err := waitForShellReady(r.Client, ref, ""); err != nil {
 					result.Errors = append(result.Errors, fmt.Sprintf("  pane %d shell not ready: %v", i, err))
-				} else if err := r.Client.Send(ref, "", fmt.Sprintf("open %q\\n", pane.URL)); err != nil {
+				} else if err := r.Client.Send(ref, "", noHistoryCmd(fmt.Sprintf("open %q", pane.URL))); err != nil {
 					result.Errors = append(result.Errors, fmt.Sprintf("  pane %d open url: %v", i, err))
 				}
 			} else if pane.Command != "" {
 				if err := waitForShellReady(r.Client, ref, ""); err != nil {
 					result.Errors = append(result.Errors, fmt.Sprintf("  pane %d shell not ready: %v", i, err))
-				} else if err := r.Client.Send(ref, "", pane.Command+"\\n"); err != nil {
+				} else if err := r.Client.Send(ref, "", noHistoryCmd(pane.Command)); err != nil {
 					result.Errors = append(result.Errors, fmt.Sprintf("  pane %d send command: %v", i, err))
 				}
 			}
@@ -258,7 +258,7 @@ func (r *Restorer) restoreWorkspace(ws model.Workspace, dryRun bool, result *Res
 				// Wait for the shell in the new pane to become interactive before sending.
 				if err := waitForShellReady(r.Client, ref, surfaceRef); err != nil {
 					result.Errors = append(result.Errors, fmt.Sprintf("  pane %d shell not ready: %v", i, err))
-				} else if err := r.Client.Send(ref, surfaceRef, pane.Command+"\\n"); err != nil {
+				} else if err := r.Client.Send(ref, surfaceRef, noHistoryCmd(pane.Command)); err != nil {
 					result.Errors = append(result.Errors, fmt.Sprintf("  pane %d send command: %v", i, err))
 				}
 			}

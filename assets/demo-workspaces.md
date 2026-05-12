@@ -10,14 +10,14 @@
 ### fullstack
 - [x] main terminal: `npm run dev` (focused)
 - [x] split right browser: `http://localhost:3000`
-- [x] split down: `less package.json`
+- [x] split down: `less CLAUDE.md`
 
 ### monitor
-- [x] main terminal: `less node_modules/.package-lock.json` (focused)
+- [x] main terminal: `less jsconfig.json` (focused)
 - [x] split right browser: `http://localhost:3000`
-- [x] split down: `less README.md`
+- [x] split down: `less CLAUDE.md`
 
 ### tdd
-- [x] main terminal: `less tsconfig.json` (focused)
+- [x] main terminal: `less jsconfig.json` (focused)
 - [x] split right: `npm run lint`
-- [x] split down: `less package.json`
+- [x] split down: `less CLAUDE.md`

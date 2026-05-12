@@ -11,6 +11,7 @@ type DryRunFormatter interface {
 	FmtFocusPane(paneRef, workspaceRef string) string
 	FmtSend(workspaceRef, text string) string
 	FmtPinWorkspace(ref string) string
+	FmtNewPane(paneType, direction, ref, url string) string
 }
 
 // CmuxDryRun formats dry-run commands as cmux CLI commands.
@@ -37,6 +38,13 @@ func (CmuxDryRun) FmtSend(workspaceRef, text string) string {
 func (CmuxDryRun) FmtPinWorkspace(ref string) string {
 	return fmt.Sprintf("cmux workspace-action --action pin --workspace %s", ref)
 }
+func (CmuxDryRun) FmtNewPane(paneType, direction, ref, url string) string {
+	cmd := fmt.Sprintf("cmux new-pane --type %s --direction %s --workspace %s", paneType, direction, ref)
+	if url != "" {
+		cmd += fmt.Sprintf(" --url %q", url)
+	}
+	return cmd
+}
 
 // GhosttyDryRun formats dry-run commands as Ghostty AppleScript snippets.
 type GhosttyDryRun struct{}
@@ -61,4 +69,10 @@ func (GhosttyDryRun) FmtSend(workspaceRef, text string) string {
 }
 func (GhosttyDryRun) FmtPinWorkspace(ref string) string {
 	return "# pin: not supported by Ghostty"
+}
+func (GhosttyDryRun) FmtNewPane(paneType, direction, ref, url string) string {
+	if paneType == "browser" && url != "" {
+		return fmt.Sprintf("osascript: split %s in %s + open %q in system browser", direction, ref, url)
+	}
+	return fmt.Sprintf("osascript: split %s in %s", direction, ref)
 }

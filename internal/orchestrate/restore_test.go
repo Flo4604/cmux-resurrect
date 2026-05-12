@@ -1,6 +1,7 @@
 package orchestrate
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -177,6 +178,48 @@ func TestRestore_EmptyFilter_RestoresAll(t *testing.T) {
 	}
 	if result.WorkspacesTotal != 2 {
 		t.Errorf("WorkspacesTotal = %d, want 2", result.WorkspacesTotal)
+	}
+}
+
+func TestRestore_BrowserPane_DryRun(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := persist.NewFileStore(dir)
+
+	layout := &model.Layout{
+		Name:    "browser-test",
+		Version: 1,
+		SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{
+				Title:  "0 dev",
+				CWD:    "/tmp/project",
+				Index:  0,
+				Active: true,
+				Panes: []model.Pane{
+					{Type: "terminal", Focus: true},
+					{Type: "browser", Split: "right", URL: "https://localhost:3000"},
+				},
+			},
+		},
+	}
+	_ = store.Save("browser-test", layout)
+
+	mc := &mockClient{sidebarCWDs: map[string]string{}}
+	restorer := &Restorer{Client: mc, Store: store}
+
+	result, err := restorer.Restore("browser-test", true, RestoreModeAdd, "")
+	if err != nil {
+		t.Fatalf("restore dry-run: %v", err)
+	}
+
+	hasBrowserCmd := false
+	for _, cmd := range result.Commands {
+		if strings.Contains(cmd, "browser") && strings.Contains(cmd, "https://localhost:3000") {
+			hasBrowserCmd = true
+		}
+	}
+	if !hasBrowserCmd {
+		t.Errorf("expected browser pane command with URL, got commands: %v", result.Commands)
 	}
 }
 

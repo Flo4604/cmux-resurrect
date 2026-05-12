@@ -198,7 +198,15 @@ func (r *Restorer) restoreWorkspace(ws model.Workspace, dryRun bool, result *Res
 	for i, pane := range ws.Panes {
 		if i == 0 {
 			// First pane is the default one created with the workspace.
-			if pane.Command != "" {
+			if pane.Type == "browser" && pane.URL != "" {
+				// The workspace always starts with a terminal pane;
+				// open the URL via the shell as a fallback.
+				if err := waitForShellReady(r.Client, ref, ""); err != nil {
+					result.Errors = append(result.Errors, fmt.Sprintf("  pane %d shell not ready: %v", i, err))
+				} else if err := r.Client.Send(ref, "", fmt.Sprintf("open %q\\n", pane.URL)); err != nil {
+					result.Errors = append(result.Errors, fmt.Sprintf("  pane %d open url: %v", i, err))
+				}
+			} else if pane.Command != "" {
 				if err := waitForShellReady(r.Client, ref, ""); err != nil {
 					result.Errors = append(result.Errors, fmt.Sprintf("  pane %d shell not ready: %v", i, err))
 				} else if err := r.Client.Send(ref, "", pane.Command+"\\n"); err != nil {
@@ -225,18 +233,34 @@ func (r *Restorer) restoreWorkspace(ws model.Workspace, dryRun bool, result *Res
 		if direction == "" {
 			direction = "right"
 		}
-		surfaceRef, err := r.Client.NewSplit(direction, ref)
-		if err != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("  pane %d split: %v", i, err))
-			continue
-		}
 
-		if pane.Command != "" {
-			// Wait for the shell in the new pane to become interactive before sending.
-			if err := waitForShellReady(r.Client, ref, surfaceRef); err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("  pane %d shell not ready: %v", i, err))
-			} else if err := r.Client.Send(ref, surfaceRef, pane.Command+"\\n"); err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("  pane %d send command: %v", i, err))
+		if pane.Type == "browser" {
+			// Browser panes use NewPane instead of NewSplit.
+			_, err := r.Client.NewPane(client.NewPaneOpts{
+				Type:         "browser",
+				Direction:    direction,
+				WorkspaceRef: ref,
+				URL:          pane.URL,
+			})
+			if err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("  pane %d new-pane browser: %v", i, err))
+				continue
+			}
+			// Browser panes don't have a shell — skip command sending.
+		} else {
+			surfaceRef, err := r.Client.NewSplit(direction, ref)
+			if err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("  pane %d split: %v", i, err))
+				continue
+			}
+
+			if pane.Command != "" {
+				// Wait for the shell in the new pane to become interactive before sending.
+				if err := waitForShellReady(r.Client, ref, surfaceRef); err != nil {
+					result.Errors = append(result.Errors, fmt.Sprintf("  pane %d shell not ready: %v", i, err))
+				} else if err := r.Client.Send(ref, surfaceRef, pane.Command+"\\n"); err != nil {
+					result.Errors = append(result.Errors, fmt.Sprintf("  pane %d send command: %v", i, err))
+				}
 			}
 		}
 		// Let the command settle before creating the next split.
@@ -284,7 +308,9 @@ func (r *Restorer) dryRunWorkspace(ws model.Workspace, result *RestoreResult) (s
 
 	for i, pane := range ws.Panes {
 		if i == 0 {
-			if pane.Command != "" {
+			if pane.Type == "browser" && pane.URL != "" {
+				result.Commands = append(result.Commands, f.FmtSend(ref, fmt.Sprintf("open %q", pane.URL)))
+			} else if pane.Command != "" {
 				result.Commands = append(result.Commands, f.FmtSend(ref, pane.Command))
 			}
 			continue
@@ -297,9 +323,13 @@ func (r *Restorer) dryRunWorkspace(ws model.Workspace, result *RestoreResult) (s
 		if direction == "" {
 			direction = "right"
 		}
-		result.Commands = append(result.Commands, f.FmtNewSplit(direction, ref))
-		if pane.Command != "" {
-			result.Commands = append(result.Commands, f.FmtSend(ref, pane.Command))
+		if pane.Type == "browser" {
+			result.Commands = append(result.Commands, f.FmtNewPane(pane.Type, direction, ref, pane.URL))
+		} else {
+			result.Commands = append(result.Commands, f.FmtNewSplit(direction, ref))
+			if pane.Command != "" {
+				result.Commands = append(result.Commands, f.FmtSend(ref, pane.Command))
+			}
 		}
 	}
 

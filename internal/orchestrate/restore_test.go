@@ -1,6 +1,7 @@
 package orchestrate
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -177,6 +178,173 @@ func TestRestore_EmptyFilter_RestoresAll(t *testing.T) {
 	}
 	if result.WorkspacesTotal != 2 {
 		t.Errorf("WorkspacesTotal = %d, want 2", result.WorkspacesTotal)
+	}
+}
+
+func TestRestore_WorkspaceFilter_SubstringMatch(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := persist.NewFileStore(dir)
+
+	layout := &model.Layout{
+		Name: "sub-test", Version: 1, SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{Title: "0 🗑️ Trash", CWD: "/tmp/trash", Index: 0, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+			{Title: "⠐ Claude Code", CWD: "/tmp/claude", Index: 1, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+			{Title: "2 tests", CWD: "/tmp/tests", Index: 2, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+		},
+	}
+	_ = store.Save("sub-test", layout)
+
+	mc := &mockClient{sidebarCWDs: map[string]string{}}
+	restorer := &Restorer{Client: mc, Store: store}
+
+	// "trash" should match "0 🗑️ Trash" (case-insensitive substring).
+	result, err := restorer.Restore("sub-test", true, RestoreModeAdd, "trash")
+	if err != nil {
+		t.Fatalf("restore with substring filter: %v", err)
+	}
+	if result.WorkspacesTotal != 1 {
+		t.Errorf("WorkspacesTotal = %d, want 1", result.WorkspacesTotal)
+	}
+	// Verify the correct workspace was selected.
+	hasTarget := false
+	for _, cmd := range result.Commands {
+		if strings.Contains(cmd, "0 🗑️ Trash") {
+			hasTarget = true
+		}
+		if strings.Contains(cmd, "⠐ Claude Code") || strings.Contains(cmd, "2 tests") {
+			t.Errorf("filtered workspace should not appear: %s", cmd)
+		}
+	}
+	if !hasTarget {
+		t.Error("expected commands for '0 🗑️ Trash' workspace")
+	}
+
+	// "claude" should match "⠐ Claude Code".
+	result, err = restorer.Restore("sub-test", true, RestoreModeAdd, "claude")
+	if err != nil {
+		t.Fatalf("restore with substring filter: %v", err)
+	}
+	if result.WorkspacesTotal != 1 {
+		t.Errorf("WorkspacesTotal = %d, want 1", result.WorkspacesTotal)
+	}
+	// Verify the correct workspace was selected.
+	hasTarget = false
+	for _, cmd := range result.Commands {
+		if strings.Contains(cmd, "⠐ Claude Code") || strings.Contains(cmd, "Claude Code") {
+			hasTarget = true
+		}
+		if strings.Contains(cmd, "0 🗑️ Trash") || strings.Contains(cmd, "2 tests") {
+			t.Errorf("filtered workspace should not appear: %s", cmd)
+		}
+	}
+	if !hasTarget {
+		t.Error("expected commands for '⠐ Claude Code' workspace")
+	}
+}
+
+func TestRestore_WorkspaceFilter_NoMatch(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := persist.NewFileStore(dir)
+
+	layout := &model.Layout{
+		Name: "nomatch-test", Version: 1, SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{Title: "0 dev", CWD: "/tmp", Index: 0, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+		},
+	}
+	_ = store.Save("nomatch-test", layout)
+
+	mc := &mockClient{sidebarCWDs: map[string]string{}}
+	restorer := &Restorer{Client: mc, Store: store}
+
+	_, err := restorer.Restore("nomatch-test", true, RestoreModeAdd, "zzz")
+	if err == nil {
+		t.Fatal("expected error for non-matching filter")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error = %q, want 'not found'", err.Error())
+	}
+}
+
+func TestRestore_WorkspaceFilter_AmbiguousMatch(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := persist.NewFileStore(dir)
+
+	layout := &model.Layout{
+		Name: "ambig-test", Version: 1, SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{Title: "0 dev-api", CWD: "/tmp/api", Index: 0, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+			{Title: "1 dev-web", CWD: "/tmp/web", Index: 1, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+			{Title: "2 docs", CWD: "/tmp/docs", Index: 2, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+		},
+	}
+	_ = store.Save("ambig-test", layout)
+
+	mc := &mockClient{sidebarCWDs: map[string]string{}}
+	restorer := &Restorer{Client: mc, Store: store}
+
+	_, err := restorer.Restore("ambig-test", true, RestoreModeAdd, "dev")
+	if err == nil {
+		t.Fatal("expected error for ambiguous filter")
+	}
+	if !strings.Contains(err.Error(), "matches multiple") {
+		t.Errorf("error = %q, want 'matches multiple'", err.Error())
+	}
+	if !strings.Contains(err.Error(), "0 dev-api") || !strings.Contains(err.Error(), "1 dev-web") {
+		t.Errorf("error should list matching titles: %q", err.Error())
+	}
+}
+
+func TestRestore_WorkspaceFilter_ExactMatchPriority(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := persist.NewFileStore(dir)
+
+	layout := &model.Layout{
+		Name: "exact-test", Version: 1, SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{Title: "dev", CWD: "/tmp/dev", Index: 0, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+			{Title: "dev-tools", CWD: "/tmp/devtools", Index: 1, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+		},
+	}
+	_ = store.Save("exact-test", layout)
+
+	mc := &mockClient{sidebarCWDs: map[string]string{}}
+	restorer := &Restorer{Client: mc, Store: store}
+
+	// "dev" exactly matches "dev", should NOT be ambiguous even though "dev-tools" also contains "dev".
+	result, err := restorer.Restore("exact-test", true, RestoreModeAdd, "dev")
+	if err != nil {
+		t.Fatalf("exact match should not be ambiguous: %v", err)
+	}
+	if result.WorkspacesTotal != 1 {
+		t.Errorf("WorkspacesTotal = %d, want 1", result.WorkspacesTotal)
+	}
+}
+
+func TestRestore_WorkspaceFilter_ExactMatchPriority_ReversedOrder(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := persist.NewFileStore(dir)
+
+	layout := &model.Layout{
+		Name: "exact-rev-test", Version: 1, SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{Title: "dev-tools", CWD: "/tmp/devtools", Index: 0, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+			{Title: "dev", CWD: "/tmp/dev", Index: 1, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+		},
+	}
+	_ = store.Save("exact-rev-test", layout)
+
+	mc := &mockClient{sidebarCWDs: map[string]string{}}
+	restorer := &Restorer{Client: mc, Store: store}
+
+	// "dev" should exact-match "dev" at index 1, not pick "dev-tools" at index 0.
+	result, err := restorer.Restore("exact-rev-test", true, RestoreModeAdd, "dev")
+	if err != nil {
+		t.Fatalf("exact match should not be ambiguous: %v", err)
+	}
+	if result.WorkspacesTotal != 1 {
+		t.Errorf("WorkspacesTotal = %d, want 1", result.WorkspacesTotal)
 	}
 }
 

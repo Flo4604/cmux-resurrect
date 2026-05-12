@@ -45,3 +45,10 @@ func waitForShellReady(c client.Backend, workspaceRef, surfaceRef string) error 
 
 	return fmt.Errorf("shell not ready after %v", ShellReadyTimeout)
 }
+
+// noHistoryCmd prefixes a command with a space so shells with
+// HIST_IGNORE_SPACE (zsh default, bash with HISTCONTROL=ignorespace)
+// don't record it in history. The trailing \\n triggers Enter.
+func noHistoryCmd(cmd string) string {
+	return " " + cmd + "\\n"
+}

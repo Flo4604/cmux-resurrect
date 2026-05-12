@@ -132,11 +132,11 @@ func (im *Importer) ImportFromMD(wf *model.WorkspaceFile, dryRun bool) (*ImportR
 			if j == 0 {
 				if pane.Type == "browser" && pane.Command != "" {
 					if err := waitForShellReady(im.Client, ref, ""); err == nil {
-						_ = im.Client.Send(ref, "", fmt.Sprintf("open %q\\n", pane.Command))
+						_ = im.Client.Send(ref, "", noHistoryCmd(fmt.Sprintf("open %q", pane.Command)))
 					}
 				} else if pane.Command != "" {
 					if err := waitForShellReady(im.Client, ref, ""); err == nil {
-						_ = im.Client.Send(ref, "", pane.Command+"\\n")
+						_ = im.Client.Send(ref, "", noHistoryCmd(pane.Command))
 					}
 				}
 				continue
@@ -188,7 +188,7 @@ func (im *Importer) ImportFromMD(wf *model.WorkspaceFile, dryRun bool) (*ImportR
 				}
 				if pane.Command != "" {
 					if err := waitForShellReady(im.Client, ref, surfaceRef); err == nil {
-						_ = im.Client.Send(ref, surfaceRef, pane.Command+"\\n")
+						_ = im.Client.Send(ref, surfaceRef, noHistoryCmd(pane.Command))
 					}
 				} else {
 					time.Sleep(DelayAfterSplit)

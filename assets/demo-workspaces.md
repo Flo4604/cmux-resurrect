@@ -8,7 +8,7 @@
 ## Templates
 
 ### fullstack
-- [x] main terminal: `npm run dev` (focused)
+- [x] main terminal: `lsof -ti:3000 | xargs kill 2>/dev/null; npm run dev` (focused)
 - [x] split right browser: `http://localhost:3000`
 - [x] split down: `nvim CLAUDE.md`
 

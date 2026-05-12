@@ -13,11 +13,11 @@
 - [x] split down: `less package.json`
 
 ### monitor
-- [x] main terminal: `top -s 5` (focused)
+- [x] main terminal: `less node_modules/.package-lock.json` (focused)
 - [x] split right browser: `http://localhost:3000`
 - [x] split down: `less README.md`
 
 ### tdd
-- [x] main terminal (focused)
+- [x] main terminal: `less tsconfig.json` (focused)
 - [x] split right: `npm run lint`
-- [x] split down: `less tsconfig.json`
+- [x] split down: `less package.json`

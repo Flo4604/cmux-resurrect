@@ -256,10 +256,10 @@ func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWor
 		return nil
 	}
 
-	// Pass 1: Title-first. The pane title is the primary signal — it tells
-	// us exactly which tool is running. For each pane with a matching title,
-	// prefer a session whose CWD matches the workspace CWD; if none match,
-	// use any unconsumed session for that tool.
+	// Pass 1a: Title + CWD match (highest confidence). Assign sessions only
+	// when both the pane title confirms the tool AND the workspace CWD matches
+	// a detected session's CWD. This prevents CWD-mismatched workspaces from
+	// stealing sessions that belong to other workspaces.
 	for i := range layout.Workspaces {
 		ws := &layout.Workspaces[i]
 		for j := range ws.Panes {
@@ -271,12 +271,33 @@ func applyDetectedSessions(layout *model.Layout, treeWorkspaces []client.TreeWor
 				if !titleMatchesAI(title, patterns) {
 					continue
 				}
-				// Prefer session matching workspace CWD (higher confidence).
 				if s := findSession(detected.ByCWD[ws.CWD], tool); s != nil {
 					ws.Panes[j].Command = s.Command
 					consumed[s.Command] = true
-				} else if s := findSession(detected.ByTool[tool], tool); s != nil {
-					// Fallback: any unconsumed session for this tool.
+				}
+				break
+			}
+		}
+	}
+
+	// Pass 1b: Title match only (fallback). For panes with a matching title
+	// but no CWD-matched session, assign any unconsumed session for that tool.
+	for i := range layout.Workspaces {
+		ws := &layout.Workspaces[i]
+		for j := range ws.Panes {
+			if ws.Panes[j].Type != "terminal" {
+				continue
+			}
+			// Skip if already assigned in Pass 1a.
+			if ws.Panes[j].Command != "" && !aiProcessNames[ws.Panes[j].Command] {
+				continue
+			}
+			title := surfaceTitles[paneKey{ws.Title, j}]
+			for tool, patterns := range aiTitlePatterns {
+				if !titleMatchesAI(title, patterns) {
+					continue
+				}
+				if s := findSession(detected.ByTool[tool], tool); s != nil {
 					ws.Panes[j].Command = s.Command
 					consumed[s.Command] = true
 				}

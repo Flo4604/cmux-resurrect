@@ -137,7 +137,19 @@ func (m *ShellModel) execSave(name string) {
 
 	count := len(layout.Workspaces)
 	label := unitLabel(m.backend, count)
-	m.output.WriteString(shellSuccessStyle.Render(fmt.Sprintf("  ✓ Saved %q — %d %s", name, count, label)))
+	browserCount := 0
+	for _, ws := range layout.Workspaces {
+		for _, p := range ws.Panes {
+			if p.Type == "browser" {
+				browserCount++
+			}
+		}
+	}
+	msg := fmt.Sprintf("  ✓ Saved %q — %d %s", name, count, label)
+	if browserCount > 0 {
+		msg += fmt.Sprintf(" (%d browser)", browserCount)
+	}
+	m.output.WriteString(shellSuccessStyle.Render(msg))
 	m.output.WriteString("\n\n")
 	m.completer.Invalidate()
 }

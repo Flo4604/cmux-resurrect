@@ -139,24 +139,64 @@ func (s *FileStore) List() ([]model.LayoutMeta, error) {
 		}
 		titles := make([]string, len(layout.Workspaces))
 		panes := make([]int, len(layout.Workspaces))
+		summaries := make([]string, len(layout.Workspaces))
 		for i, ws := range layout.Workspaces {
 			titles[i] = ws.Title
 			panes[i] = len(ws.Panes)
+			summaries[i] = workspacePaneSummary(ws)
 		}
 		metas = append(metas, model.LayoutMeta{
-			Name:            layout.Name,
-			Description:     layout.Description,
-			SavedAt:         layout.SavedAt,
-			WorkspaceCount:  len(layout.Workspaces),
-			WorkspaceTitles: titles,
-			WorkspacePanes:  panes,
-			FilePath:        s.Path(name),
+			Name:               layout.Name,
+			Description:        layout.Description,
+			SavedAt:            layout.SavedAt,
+			WorkspaceCount:     len(layout.Workspaces),
+			WorkspaceTitles:    titles,
+			WorkspacePanes:     panes,
+			WorkspaceSummaries: summaries,
+			FilePath:           s.Path(name),
 		})
 	}
 	sort.Slice(metas, func(i, j int) bool {
 		return metas[i].Name < metas[j].Name
 	})
 	return metas, nil
+}
+
+// workspacePaneSummary builds a short description of a workspace's panes.
+// Examples: "shell", "claude", "htop · shell", "claude · 🌐 localhost:3000"
+func workspacePaneSummary(ws model.Workspace) string {
+	var parts []string
+	for _, p := range ws.Panes {
+		if p.Type == "browser" {
+			url := p.URL
+			if url != "" {
+				// Strip protocol for brevity.
+				url = strings.TrimPrefix(url, "https://")
+				url = strings.TrimPrefix(url, "http://")
+				url = strings.TrimSuffix(url, "/")
+				if len(url) > 30 {
+					url = url[:27] + "..."
+				}
+			}
+			if url != "" {
+				parts = append(parts, "🌐 "+url)
+			} else {
+				parts = append(parts, "🌐 browser")
+			}
+		} else if p.Command != "" {
+			cmd := p.Command
+			if len(cmd) > 30 {
+				cmd = cmd[:27] + "..."
+			}
+			parts = append(parts, cmd)
+		} else {
+			parts = append(parts, "shell")
+		}
+	}
+	if len(parts) == 0 {
+		return "shell"
+	}
+	return strings.Join(parts, " · ")
 }
 
 // Delete removes a layout file.

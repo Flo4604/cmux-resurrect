@@ -247,6 +247,71 @@ func TestCompleteLayoutNames_StoreError(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// 1b. Unit tests: completeWorkspaceNames
+// ---------------------------------------------------------------------------
+
+func TestCompleteWorkspaceNames_ReturnsWorkspaceTitles(t *testing.T) {
+	layoutsDir, _ := setupTestConfig(t)
+
+	// Create a layout with named workspaces.
+	store, _ := persist.NewFileStore(layoutsDir)
+	layout := &model.Layout{
+		Name: "my-day", Version: 1, SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{Title: "0 🗑️ Trash", CWD: "/tmp", Index: 0, Panes: []model.Pane{{Type: "terminal"}}},
+			{Title: "⠐ Claude Code", CWD: "/tmp", Index: 1, Panes: []model.Pane{{Type: "terminal"}, {Type: "terminal", Split: "right"}}},
+			{Title: "2 tests", CWD: "/tmp", Index: 2, Panes: []model.Pane{{Type: "terminal"}}},
+		},
+	}
+	_ = store.Save("my-day", layout)
+
+	completions, directive := completeWorkspaceNames(nil, []string{"my-day"}, "")
+	if len(completions) != 3 {
+		t.Fatalf("expected 3 completions, got %d: %v", len(completions), completions)
+	}
+	if directive != cobra.ShellCompDirectiveNoFileComp {
+		t.Errorf("directive = %d, want ShellCompDirectiveNoFileComp", directive)
+	}
+
+	// Check titles and descriptions.
+	if !strings.Contains(completions[0], "0 🗑️ Trash") {
+		t.Errorf("completions[0] = %q, expected '0 🗑️ Trash'", completions[0])
+	}
+	if !strings.Contains(completions[1], "⠐ Claude Code") {
+		t.Errorf("completions[1] = %q, expected '⠐ Claude Code'", completions[1])
+	}
+	// Claude Code has 2 panes
+	if !strings.Contains(completions[1], "2") {
+		t.Errorf("completions[1] = %q, expected pane count '2'", completions[1])
+	}
+}
+
+func TestCompleteWorkspaceNames_InvalidLayout(t *testing.T) {
+	setupTestConfig(t)
+
+	completions, directive := completeWorkspaceNames(nil, []string{"nonexistent"}, "")
+	if len(completions) != 0 {
+		t.Errorf("expected 0 completions for invalid layout, got %d", len(completions))
+	}
+	if directive != cobra.ShellCompDirectiveNoFileComp {
+		t.Errorf("directive = %d, want ShellCompDirectiveNoFileComp", directive)
+	}
+}
+
+func TestCompleteWorkspaceNames_ThirdArgBlocked(t *testing.T) {
+	layoutsDir, _ := setupTestConfig(t)
+	saveTestLayout(t, layoutsDir, "my-day", "", 2)
+
+	completions, directive := completeWorkspaceNames(nil, []string{"my-day", "something"}, "")
+	if len(completions) != 0 {
+		t.Errorf("expected 0 completions for third arg, got %d", len(completions))
+	}
+	if directive != cobra.ShellCompDirectiveNoFileComp {
+		t.Errorf("directive = %d, want ShellCompDirectiveNoFileComp", directive)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // 2. Unit tests: completeBlueprintNames
 // ---------------------------------------------------------------------------
 

@@ -1,16 +1,16 @@
 ## Projects
 **Icon | Name | Template | Pin | Path**
 
-- [x] | 🚀 | Web App | fullstack | yes | ~/projects/webapp |
-- [x] | 📊 | Dashboard | monitor | yes | ~/projects/dashboard |
-- [x] | 🧪 | Tests | tdd | no | ~/projects/webapp |
+- [x] | 🚀 | Homepage | fullstack | yes | ~/Git/yo/homepage |
+- [x] | 📊 | Monitor | monitor | yes | ~/Git/yo/homepage |
+- [x] | 🧪 | Tests | tdd | no | ~/Git/yo/homepage |
 
 ## Templates
 
 ### fullstack
 - [x] main terminal: `npm run dev` (focused)
 - [x] split right browser: `http://localhost:3000`
-- [x] split down: `npx nodemon --watch src`
+- [x] split down: `git log --oneline -20`
 
 ### monitor
 - [x] main terminal: `top` (focused)
@@ -19,5 +19,5 @@
 
 ### tdd
 - [x] main terminal (focused)
-- [x] split right: `npm test -- --watch`
-- [x] split down: `git log --oneline -20`
+- [x] split right: `npm run lint`
+- [x] split down: `git status`

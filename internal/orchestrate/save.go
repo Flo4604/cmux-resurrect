@@ -115,12 +115,18 @@ func (s *Saver) buildWorkspace(tw client.TreeWorkspace) (*model.Workspace, error
 			pane.Split = "right"
 		}
 
-		// Use surface info for type and URL.
+		// Use surface info for type, URL, and foreground command.
 		if len(tp.Surfaces) > 0 {
 			surf := tp.Surfaces[0]
 			pane.Type = surf.Type
 			if surf.URL != nil {
 				pane.URL = *surf.URL
+			}
+			// Detect the foreground command running in this terminal pane.
+			if surf.Type == "terminal" && surf.TTY != "" {
+				if cmd := detect.ForegroundCommand(surf.TTY); cmd != "" {
+					pane.Command = cmd
+				}
 			}
 		}
 

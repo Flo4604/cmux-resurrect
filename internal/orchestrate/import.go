@@ -130,7 +130,11 @@ func (im *Importer) ImportFromMD(wf *model.WorkspaceFile, dryRun bool) (*ImportR
 		// 3. Create splits and send commands.
 		for j, pane := range panes {
 			if j == 0 {
-				if pane.Command != "" {
+				if pane.Type == "browser" && pane.Command != "" {
+					if err := waitForShellReady(im.Client, ref, ""); err == nil {
+						_ = im.Client.Send(ref, "", fmt.Sprintf("open %q\\n", pane.Command))
+					}
+				} else if pane.Command != "" {
 					if err := waitForShellReady(im.Client, ref, ""); err == nil {
 						_ = im.Client.Send(ref, "", pane.Command+"\\n")
 					}
@@ -155,22 +159,40 @@ func (im *Importer) ImportFromMD(wf *model.WorkspaceFile, dryRun bool) (*ImportR
 			if split == "" {
 				split = "right"
 			}
-			surfaceRef, err := im.Client.NewSplit(split, ref)
-			if err != nil {
-				im.emit(ImportEvent{
-					Status: ImportWarn,
-					Title:  title,
-					Panes:  panes,
-					Warn:   fmt.Sprintf("%s pane %d: split failed: %v", title, j, err),
+
+			if pane.Type == "browser" {
+				_, err := im.Client.NewPane(client.NewPaneOpts{
+					Type:         "browser",
+					Direction:    split,
+					WorkspaceRef: ref,
+					URL:          pane.Command,
 				})
-				continue
-			}
-			if pane.Command != "" {
-				if err := waitForShellReady(im.Client, ref, surfaceRef); err == nil {
-					_ = im.Client.Send(ref, surfaceRef, pane.Command+"\\n")
+				if err != nil {
+					im.emit(ImportEvent{
+						Status: ImportWarn,
+						Title:  title,
+						Panes:  panes,
+						Warn:   fmt.Sprintf("%s pane %d: browser pane failed: %v", title, j, err),
+					})
 				}
 			} else {
-				time.Sleep(DelayAfterSplit)
+				surfaceRef, err := im.Client.NewSplit(split, ref)
+				if err != nil {
+					im.emit(ImportEvent{
+						Status: ImportWarn,
+						Title:  title,
+						Panes:  panes,
+						Warn:   fmt.Sprintf("%s pane %d: split failed: %v", title, j, err),
+					})
+					continue
+				}
+				if pane.Command != "" {
+					if err := waitForShellReady(im.Client, ref, surfaceRef); err == nil {
+						_ = im.Client.Send(ref, surfaceRef, pane.Command+"\\n")
+					}
+				} else {
+					time.Sleep(DelayAfterSplit)
+				}
 			}
 		}
 

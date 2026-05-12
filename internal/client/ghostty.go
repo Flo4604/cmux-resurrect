@@ -482,6 +482,22 @@ func (g *GhosttyClient) NewSplit(direction, workspaceRef string) (string, error)
 	return "", fmt.Errorf("split created but could not determine new terminal ref")
 }
 
+func (g *GhosttyClient) NewPane(opts NewPaneOpts) (string, error) {
+	// Ghostty has no browser pane concept — create a terminal split,
+	// then open the URL in the system browser if requested.
+	ref, err := g.NewSplit(opts.Direction, opts.WorkspaceRef)
+	if err != nil {
+		return "", err
+	}
+
+	if opts.Type == "browser" && opts.URL != "" {
+		g.waitForShellReady(opts.WorkspaceRef)
+		_ = g.Send(opts.WorkspaceRef, ref, fmt.Sprintf("open %q\\n", opts.URL))
+	}
+
+	return ref, nil
+}
+
 func (g *GhosttyClient) FocusPane(paneRef, workspaceRef string) error {
 	tabIdx, err := parseTabIndex(workspaceRef)
 	if err != nil {

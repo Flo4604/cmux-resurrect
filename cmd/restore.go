@@ -16,14 +16,23 @@ var restoreCmd = &cobra.Command{
 	Use:   "restore [name]",
 	Short: "Restore a saved layout",
 	Long:  "Recreates tabs, pane arrangements, and sends commands from a saved layout.\n\nYou will be asked whether to replace your current tabs or add to them.\nUse --mode to skip the interactive prompt (useful for scripts).\n\nIf no layout name is given, an interactive picker is shown.",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  cobra.MaximumNArgs(2),
 	RunE:  runRestore,
 }
 
 func init() {
 	restoreCmd.Flags().BoolVar(&restoreDryRun, "dry-run", false, "show commands without executing")
 	restoreCmd.Flags().StringVar(&restoreMode, "mode", "", "restore mode: \"replace\" or \"add\" (skip interactive prompt)")
-	restoreCmd.ValidArgsFunction = completeLayoutNames
+	restoreCmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		switch len(args) {
+		case 0:
+			return completeLayoutNames(cmd, args, toComplete)
+		case 1:
+			return completeWorkspaceNames(cmd, args, toComplete)
+		default:
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+	}
 	_ = restoreCmd.RegisterFlagCompletionFunc("mode", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return []string{
 			"replace\tClose existing " + unitName(2) + " first",
@@ -38,9 +47,13 @@ func runRestore(cmd *cobra.Command, args []string) error {
 	var workspaceFilter string
 	var pickerMode orchestrate.RestoreMode
 	var pickerModeSet bool
-	if len(args) == 1 {
+	switch len(args) {
+	case 2:
 		name = args[0]
-	} else {
+		workspaceFilter = args[1]
+	case 1:
+		name = args[0]
+	default:
 		store, err := newStore()
 		if err != nil {
 			return err
@@ -113,6 +126,11 @@ func runRestore(cmd *cobra.Command, args []string) error {
 			mode = orchestrate.RestoreModeReplace
 		case "add":
 			mode = orchestrate.RestoreModeAdd
+		default:
+			// Single workspace restore defaults to add mode (no prompt needed).
+			if workspaceFilter != "" {
+				mode = orchestrate.RestoreModeAdd
+			}
 		}
 	}
 

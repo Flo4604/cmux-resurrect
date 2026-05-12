@@ -575,6 +575,62 @@ func TestE2E_RestoreLayoutNames_PartialMatch(t *testing.T) {
 	}
 }
 
+func TestE2E_RestoreWorkspaceNames(t *testing.T) {
+	layoutsDir, _ := setupTestConfig(t)
+
+	// Create a layout with named workspaces.
+	store, _ := persist.NewFileStore(layoutsDir)
+	layout := &model.Layout{
+		Name: "my-day", Version: 1, SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{Title: "0 dev", CWD: "/tmp", Index: 0, Panes: []model.Pane{{Type: "terminal"}}},
+			{Title: "1 docs", CWD: "/tmp", Index: 1, Panes: []model.Pane{{Type: "terminal"}, {Type: "terminal", Split: "right"}}},
+		},
+	}
+	_ = store.Save("my-day", layout)
+
+	output := executeComplete(t, "restore", "my-day", "")
+	names := completionNames(output)
+	assertContains(t, names, "0 dev")
+	assertContains(t, names, "1 docs")
+
+	// Check descriptions include pane counts.
+	lines := completionLines(output)
+	found := false
+	for _, line := range lines {
+		if strings.HasPrefix(line, "1 docs\t") && strings.Contains(line, "2") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected '1 docs' with pane count in: %v", lines)
+	}
+
+	// Directive should be NoFileComp.
+	if d := completionDirective(output); d != 4 {
+		t.Errorf("directive = %d, want 4 (NoFileComp)", d)
+	}
+}
+
+func TestE2E_RestoreThirdArgBlocked(t *testing.T) {
+	layoutsDir, _ := setupTestConfig(t)
+
+	store, _ := persist.NewFileStore(layoutsDir)
+	layout := &model.Layout{
+		Name: "my-day", Version: 1, SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{Title: "0 dev", CWD: "/tmp", Index: 0, Panes: []model.Pane{{Type: "terminal"}}},
+		},
+	}
+	_ = store.Save("my-day", layout)
+
+	output := executeComplete(t, "restore", "my-day", "0 dev", "")
+	names := completionNames(output)
+	if len(names) != 0 {
+		t.Errorf("expected 0 completions after workspace name, got %d: %v", len(names), names)
+	}
+}
+
 func TestE2E_DeleteLayoutNames(t *testing.T) {
 	layoutsDir, _ := setupTestConfig(t)
 	saveTestLayout(t, layoutsDir, "alpha", "", 1)
@@ -627,7 +683,7 @@ func TestE2E_LayoutNoSecondArg(t *testing.T) {
 	saveTestLayout(t, layoutsDir, "alpha", "", 1)
 
 	// After providing the layout name, no further completions.
-	for _, cmd := range []string{"restore", "delete", "show", "edit", "save", "watch"} {
+	for _, cmd := range []string{"delete", "show", "edit", "save", "watch"} {
 		t.Run(cmd, func(t *testing.T) {
 			output := executeComplete(t, cmd, "alpha", "")
 			names := completionNames(output)

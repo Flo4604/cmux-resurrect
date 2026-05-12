@@ -497,7 +497,7 @@ func (g *GhosttyClient) NewPane(opts NewPaneOpts) (string, error) {
 	if opts.Type == "browser" && opts.URL != "" {
 		// Wait for the NEW terminal's shell to initialize, not terminal 1.
 		g.waitForTerminalReady(opts.WorkspaceRef, ref)
-		_ = g.Send(opts.WorkspaceRef, ref, fmt.Sprintf("open %q\\n", opts.URL))
+		_ = g.Send(opts.WorkspaceRef, ref, " "+fmt.Sprintf("open %q", opts.URL)+"\\n")
 	}
 
 	return ref, nil

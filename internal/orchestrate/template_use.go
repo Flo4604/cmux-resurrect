@@ -120,13 +120,13 @@ func (tu *TemplateUser) execute(panes []model.Pane, opts TemplateUseOpts, title 
 				// First pane is always terminal; open URL as fallback.
 				if err := waitForShellReady(tu.Client, ref, ""); err != nil {
 					tu.progress(fmt.Sprintf("pane %d shell not ready: %v", i, err))
-				} else if err := tu.Client.Send(ref, "", fmt.Sprintf("open %q\\n", pane.Command)); err != nil {
+				} else if err := tu.Client.Send(ref, "", noHistoryCmd(fmt.Sprintf("open %q", pane.Command))); err != nil {
 					tu.progress(fmt.Sprintf("pane %d open url: %v", i, err))
 				}
 			} else if pane.Command != "" {
 				if err := waitForShellReady(tu.Client, ref, ""); err != nil {
 					tu.progress(fmt.Sprintf("pane %d shell not ready: %v", i, err))
-				} else if err := tu.Client.Send(ref, "", pane.Command+"\\n"); err != nil {
+				} else if err := tu.Client.Send(ref, "", noHistoryCmd(pane.Command)); err != nil {
 					tu.progress(fmt.Sprintf("pane %d send: %v", i, err))
 				}
 			}
@@ -169,7 +169,7 @@ func (tu *TemplateUser) execute(panes []model.Pane, opts TemplateUseOpts, title 
 			if pane.Command != "" {
 				if err := waitForShellReady(tu.Client, ref, surfaceRef); err != nil {
 					tu.progress(fmt.Sprintf("pane %d shell not ready: %v", i, err))
-				} else if err := tu.Client.Send(ref, surfaceRef, pane.Command+"\\n"); err != nil {
+				} else if err := tu.Client.Send(ref, surfaceRef, noHistoryCmd(pane.Command)); err != nil {
 					tu.progress(fmt.Sprintf("pane %d send: %v", i, err))
 				}
 			} else {

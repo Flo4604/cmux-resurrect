@@ -485,17 +485,45 @@ func (g *GhosttyClient) NewSplit(direction, workspaceRef string) (string, error)
 func (g *GhosttyClient) NewPane(opts NewPaneOpts) (string, error) {
 	// Ghostty has no browser pane concept — create a terminal split,
 	// then open the URL in the system browser if requested.
-	ref, err := g.NewSplit(opts.Direction, opts.WorkspaceRef)
+	direction := opts.Direction
+	if direction == "" {
+		direction = "right"
+	}
+	ref, err := g.NewSplit(direction, opts.WorkspaceRef)
 	if err != nil {
 		return "", err
 	}
 
 	if opts.Type == "browser" && opts.URL != "" {
-		g.waitForShellReady(opts.WorkspaceRef)
+		// Wait for the NEW terminal's shell to initialize, not terminal 1.
+		g.waitForTerminalReady(opts.WorkspaceRef, ref)
 		_ = g.Send(opts.WorkspaceRef, ref, fmt.Sprintf("open %q\\n", opts.URL))
 	}
 
 	return ref, nil
+}
+
+// waitForTerminalReady waits until a specific terminal in a tab has a CWD.
+func (g *GhosttyClient) waitForTerminalReady(workspaceRef, terminalRef string) {
+	tabIdx, err := parseTabIndex(workspaceRef)
+	if err != nil {
+		return
+	}
+	termIdx, err := parseTerminalIndex(terminalRef)
+	if err != nil {
+		return
+	}
+	deadline := time.Now().Add(NewWorkspaceDeadline)
+	for time.Now().Before(deadline) {
+		cwd, err := g.runScript(fmt.Sprintf(
+			`tell application "Ghostty" to working directory of terminal %d of tab %d of front window`,
+			termIdx, tabIdx,
+		))
+		if err == nil && cwd != "" {
+			return
+		}
+		time.Sleep(PollInterval)
+	}
 }
 
 func (g *GhosttyClient) FocusPane(paneRef, workspaceRef string) error {

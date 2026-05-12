@@ -87,3 +87,11 @@ type NewWorkspaceOpts struct {
 	CWD     string
 	Command string
 }
+
+// NewPaneOpts for creating a new pane (terminal or browser).
+type NewPaneOpts struct {
+	Type         string // "terminal" or "browser"
+	Direction    string // "left", "right", "up", "down"
+	WorkspaceRef string
+	URL          string // for browser panes
+}

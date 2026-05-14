@@ -135,7 +135,7 @@ func runRestore(cmd *cobra.Command, args []string) error {
 				// Interactive prompt.
 				prompted, err := promptRestoreMode()
 				if err != nil {
-					fmt.Fprintln(os.Stderr, dimStyle.Render("  Cancelled."))
+					fmt.Fprintln(os.Stderr, dimStyle.Render("Cancelled."))
 					return nil
 				}
 				mode = prompted
@@ -206,10 +206,10 @@ func runRestore(cmd *cobra.Command, args []string) error {
 
 func promptRestoreMode() (orchestrate.RestoreMode, error) {
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintf(os.Stderr, "  How do you want to restore?\n\n")
-	fmt.Fprintf(os.Stderr, "    %s  Close non-matching %s, keep matching\n", cyanStyle.Render("[r]eplace"), unitName(2))
-	fmt.Fprintf(os.Stderr, "    %s  Keep all existing %s, add missing\n\n", cyanStyle.Render("[a]dd"), unitName(2))
-	fmt.Fprintf(os.Stderr, "  Choice [r/a]: ")
+	fmt.Fprintf(os.Stderr, "How do you want to restore?\n\n")
+	fmt.Fprintf(os.Stderr, "  %s  Close non-matching %s, keep matching\n", cyanStyle.Render("[r]eplace"), unitName(2))
+	fmt.Fprintf(os.Stderr, "  %s  Keep all existing %s, add missing\n\n", cyanStyle.Render("[a]dd"), unitName(2))
+	fmt.Fprintf(os.Stderr, "Choice [r/a]: ")
 
 	// Read a single keypress in raw mode — no Enter needed, Escape cancels cleanly.
 	state, err := term.MakeRaw(os.Stdin.Fd())

@@ -6,10 +6,10 @@ import "github.com/drolosoft/cmux-resurrect/internal/client"
 type RestoreHint int
 
 const (
-	HintNoop     RestoreHint = iota // layout already matches — nothing to do
-	HintAutoAdd                     // no extras, Replace=Add — skip all prompts
-	HintAskMode                     // ask Replace/Add only, skip Skip/Fresh
-	HintAskBoth                     // ask Replace/Add, then Skip/Fresh
+	HintNoop    RestoreHint = iota // layout already matches — nothing to do
+	HintAutoAdd                    // no extras, Replace=Add — skip all prompts
+	HintAskMode                    // ask Replace/Add only, skip Skip/Fresh
+	HintAskBoth                    // ask Replace/Add, then Skip/Fresh
 )
 
 // RestoreState holds the pre-detection results.

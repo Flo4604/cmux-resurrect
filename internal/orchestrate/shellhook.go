@@ -23,12 +23,23 @@ func ShellHook(shell string) string {
 	pidPath := DefaultPIDPath()
 
 	switch shell {
-	case "zsh", "bash":
-		return fmt.Sprintf(`# crex auto-persistence — add to .zshrc or .bashrc
+	case "zsh":
+		return fmt.Sprintf(`# crex auto-persistence — add to .zshrc
 # Starts crex watch in daemon mode if not already running.
 if [ -z "$CREX_NO_WATCH" ]; then
   if ! kill -0 "$(cat "%s" 2>/dev/null)" 2>/dev/null; then
-    crex watch --daemon &>/dev/null
+    nohup crex watch --daemon </dev/null >/dev/null 2>&1 &!
+  fi
+fi
+`, pidPath)
+
+	case "bash":
+		return fmt.Sprintf(`# crex auto-persistence — add to .bashrc
+# Starts crex watch in daemon mode if not already running.
+if [ -z "$CREX_NO_WATCH" ]; then
+  if ! kill -0 "$(cat "%s" 2>/dev/null)" 2>/dev/null; then
+    nohup crex watch --daemon </dev/null >/dev/null 2>&1 &
+    disown
   fi
 fi
 `, pidPath)
@@ -38,7 +49,7 @@ fi
 # Starts crex watch in daemon mode if not already running.
 if not set -q CREX_NO_WATCH
   if not kill -0 (cat "%s" 2>/dev/null) 2>/dev/null
-    crex watch --daemon &>/dev/null
+    nohup crex watch --daemon </dev/null >/dev/null 2>&1 &
   end
 end
 `, pidPath)

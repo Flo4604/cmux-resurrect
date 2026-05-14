@@ -224,21 +224,17 @@ func promptRestoreMode() (orchestrate.RestoreMode, error) {
 	// Read a single keypress in raw mode — no Enter needed, Escape cancels cleanly.
 	state, err := term.MakeRaw(os.Stdin.Fd())
 	if err != nil {
-		// Fallback: non-interactive stdin (pipe, CI). Cancel silently.
 		return 0, fmt.Errorf("cancelled")
 	}
-	defer term.Restore(os.Stdin.Fd(), state)
 
 	buf := make([]byte, 3)
 	n, _ := os.Stdin.Read(buf)
-	fmt.Fprintln(os.Stderr) // newline after the keypress
 
-	if n == 0 {
-		return 0, fmt.Errorf("cancelled")
-	}
+	// Restore terminal BEFORE printing — raw mode turns \n into bare LF (no CR).
+	term.Restore(os.Stdin.Fd(), state)
+	fmt.Fprintln(os.Stderr)
 
-	// Escape key is 0x1b.
-	if buf[0] == 0x1b {
+	if n == 0 || buf[0] == 0x1b {
 		return 0, fmt.Errorf("cancelled")
 	}
 
@@ -263,10 +259,11 @@ func promptSkipMatching() (bool, error) {
 	if err != nil {
 		return true, fmt.Errorf("cancelled")
 	}
-	defer term.Restore(os.Stdin.Fd(), state)
 
 	buf := make([]byte, 3)
 	n, _ := os.Stdin.Read(buf)
+
+	term.Restore(os.Stdin.Fd(), state)
 	fmt.Fprintln(os.Stderr)
 
 	if n == 0 || buf[0] == 0x1b {

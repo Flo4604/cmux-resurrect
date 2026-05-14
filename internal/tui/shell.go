@@ -393,10 +393,14 @@ func (m *ShellModel) updateBrowse(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *ShellModel) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Type == tea.KeyRunes && len(msg.Runes) == 1 && (msg.Runes[0] == 'y' || msg.Runes[0] == 'Y') {
 		if m.confirmFn != nil {
+			before := m.output.Len()
 			m.confirmFn()
+			// Only show success if confirmFn didn't write an error.
+			if m.output.Len() == before {
+				m.output.WriteString(shellSuccessStyle.Render("  ✓ Done"))
+				m.output.WriteString("\n")
+			}
 		}
-		m.output.WriteString(shellSuccessStyle.Render("  ✓ Done"))
-		m.output.WriteString("\n")
 	} else {
 		m.output.WriteString(shellDimStyle.Render("  Cancelled"))
 		m.output.WriteString("\n")

@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/drolosoft/cmux-resurrect/internal/client"
+	"github.com/drolosoft/cmux-resurrect/internal/orchestrate"
 	"github.com/drolosoft/cmux-resurrect/internal/persist"
 )
 
@@ -17,6 +18,7 @@ const (
 	modePrompt shellMode = iota
 	modeBrowse
 	modeConfirm
+	modeRestoreAsk
 )
 
 const maxHistory = 50
@@ -59,6 +61,11 @@ type ShellModel struct {
 	// Confirmation state
 	confirmMsg string
 	confirmFn  func()
+
+	// Restore-ask state (mode picker before restore)
+	restoreAskName   string // layout name pending restore
+	restoreAskFilter string // workspace filter pending restore
+	restoreAskCursor int    // 0 = replace, 1 = add
 }
 
 // NewShellModel creates the interactive shell model.
@@ -150,6 +157,8 @@ func (m *ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateBrowse(msg)
 		case modeConfirm:
 			return m.updateConfirm(msg)
+		case modeRestoreAsk:
+			return m.updateRestoreAsk(msg)
 		}
 	}
 
@@ -396,6 +405,46 @@ func (m *ShellModel) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.confirmMsg = ""
 	m.confirmFn = nil
 	m.flushOutput()
+	return m, nil
+}
+
+func (m *ShellModel) updateRestoreAsk(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyUp:
+		if m.restoreAskCursor > 0 {
+			m.restoreAskCursor--
+		}
+		return m, nil
+	case tea.KeyDown:
+		if m.restoreAskCursor < 1 {
+			m.restoreAskCursor++
+		}
+		return m, nil
+	case tea.KeyEnter:
+		mode := orchestrate.RestoreModeReplace
+		if m.restoreAskCursor == 1 {
+			mode = orchestrate.RestoreModeAdd
+		}
+		m.mode = modePrompt
+		return m, m.startRestore(m.restoreAskName, m.restoreAskFilter, mode)
+	case tea.KeyEsc:
+		m.mode = modePrompt
+		m.output.WriteString(shellDimStyle.Render("  Cancelled"))
+		m.output.WriteString("\n\n")
+		m.flushOutput()
+		return m, nil
+	case tea.KeyRunes:
+		if len(msg.Runes) == 1 {
+			switch msg.Runes[0] {
+			case 'r', 'R':
+				m.mode = modePrompt
+				return m, m.startRestore(m.restoreAskName, m.restoreAskFilter, orchestrate.RestoreModeReplace)
+			case 'a', 'A':
+				m.mode = modePrompt
+				return m, m.startRestore(m.restoreAskName, m.restoreAskFilter, orchestrate.RestoreModeAdd)
+			}
+		}
+	}
 	return m, nil
 }
 
@@ -652,6 +701,25 @@ func (m *ShellModel) View() string {
 		return prompt + header + "\n\n" + m.browse.View()
 	case modeConfirm:
 		return prompt + header + "\n\n" + m.confirmMsg + "\n"
+	case modeRestoreAsk:
+		var b strings.Builder
+		b.WriteString("  How do you want to restore?\n\n")
+		labels := []string{
+			"Replace — close non-matching, keep matching",
+			"Add     — keep all existing, add missing",
+		}
+		keys := []string{"r", "a"}
+		for i, label := range labels {
+			if i == m.restoreAskCursor {
+				fmt.Fprintf(&b, "  %s %s  %s\n", shellSuccessStyle.Render("▸"), shellSuccessStyle.Render("["+keys[i]+"]"), label)
+			} else {
+				fmt.Fprintf(&b, "    %s  %s\n", shellDimStyle.Render("["+keys[i]+"]"), label)
+			}
+		}
+		b.WriteString("\n")
+		b.WriteString(shellDimStyle.Render("  ↑/↓ select · ↵ confirm · r/a shortcut · esc cancel"))
+		b.WriteString("\n")
+		return prompt + header + "\n\n" + b.String()
 	default:
 		return prompt + header + "\n" + m.lastOutput
 	}

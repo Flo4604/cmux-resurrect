@@ -73,7 +73,7 @@ func TestParseForegroundCommand(t *testing.T) {
 			want: "",
 		},
 		{
-			name: "empty output",
+			name:  "empty output",
 			psOut: "",
 			want:  "",
 		},

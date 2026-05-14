@@ -46,12 +46,12 @@ func (m *mockClient) NewSplit(dir, ref string) (string, error) { return "surface
 func (m *mockClient) NewPane(opts client.NewPaneOpts) (string, error) {
 	return "surface:new", nil
 }
-func (m *mockClient) FocusPane(pane, ws string) error          { return nil }
-func (m *mockClient) Send(ws, surf, text string) error         { return nil }
-func (m *mockClient) PinWorkspace(ref string) error            { return nil }
-func (m *mockClient) UnpinWorkspace(ref string) error          { return nil }
-func (m *mockClient) CloseWorkspace(ref string) error          { return nil }
-func (m *mockClient) DryRunFormatter() client.DryRunFormatter  { return client.CmuxDryRun{} }
+func (m *mockClient) FocusPane(pane, ws string) error         { return nil }
+func (m *mockClient) Send(ws, surf, text string) error        { return nil }
+func (m *mockClient) PinWorkspace(ref string) error           { return nil }
+func (m *mockClient) UnpinWorkspace(ref string) error         { return nil }
+func (m *mockClient) CloseWorkspace(ref string) error         { return nil }
+func (m *mockClient) DryRunFormatter() client.DryRunFormatter { return client.CmuxDryRun{} }
 
 func TestSave_FromFixture(t *testing.T) {
 	// Load tree fixture.

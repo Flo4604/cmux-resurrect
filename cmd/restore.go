@@ -164,6 +164,16 @@ func runRestore(cmd *cobra.Command, args []string) error {
 					return nil
 				case orchestrate.HintAutoAdd:
 					mode = orchestrate.RestoreModeAdd
+				case orchestrate.HintAskFresh:
+					// Matching tabs exist but no extras — Replace/Add are equivalent
+					// for closing. Just ask Skip/Fresh directly.
+					mode = orchestrate.RestoreModeAdd
+					skip, err := promptSkipMatching()
+					if err != nil {
+						fmt.Fprintln(os.Stderr, "\n"+dimStyle.Render("Cancelled."))
+						return nil
+					}
+					skipMatching = skip
 				case orchestrate.HintAskMode:
 					prompted, err := promptRestoreMode()
 					if err != nil {

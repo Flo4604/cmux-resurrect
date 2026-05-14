@@ -6,10 +6,11 @@ import "github.com/drolosoft/cmux-resurrect/internal/client"
 type RestoreHint int
 
 const (
-	HintNoop    RestoreHint = iota // layout already matches — nothing to do
-	HintAutoAdd                    // no extras, Replace=Add — skip all prompts
-	HintAskMode                    // ask Replace/Add only, skip Skip/Fresh
-	HintAskBoth                    // ask Replace/Add, then Skip/Fresh
+	HintNoop     RestoreHint = iota // layout already matches — nothing to do
+	HintAutoAdd                     // no matching tabs, just create missing — skip all prompts
+	HintAskFresh                    // matching tabs exist, no extras — ask Skip/Fresh only
+	HintAskMode                     // extras exist, no matching — ask Replace/Add only
+	HintAskBoth                     // extras + matching exist — ask Replace/Add, then Skip/Fresh
 )
 
 // RestoreState holds the pre-detection results.
@@ -69,16 +70,16 @@ func DetectRestoreState(cl client.Backend, layoutTitles []string) RestoreState {
 	state := RestoreState{Matching: matching, Extras: extras, Missing: missing}
 
 	switch {
-	case extras == 0 && missing == 0:
+	case matching == 0 && extras == 0 && missing == 0:
 		state.Hint = HintNoop
-	case extras == 0:
-		state.Hint = HintAutoAdd
-	case matching == 0:
-		state.Hint = HintAskMode
-	case missing > 0:
-		state.Hint = HintAskBoth
+	case matching == 0 && extras == 0:
+		state.Hint = HintAutoAdd // fresh terminal — just create missing
+	case matching > 0 && extras == 0:
+		state.Hint = HintAskFresh // matching tabs exist, ask Skip/Fresh
+	case matching == 0 && extras > 0:
+		state.Hint = HintAskMode // extras but no matching — ask Replace/Add
 	default:
-		state.Hint = HintAskMode
+		state.Hint = HintAskBoth // matching + extras — ask both
 	}
 
 	return state

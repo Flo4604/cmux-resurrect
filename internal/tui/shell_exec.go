@@ -190,6 +190,13 @@ func (m *ShellModel) execRestore(name string, workspaceFilter string) tea.Cmd {
 		return nil
 	case orchestrate.HintAutoAdd:
 		return m.startRestore(name, workspaceFilter, orchestrate.RestoreModeAdd, true)
+	case orchestrate.HintAskFresh:
+		// Matching tabs exist but no extras — go straight to Skip/Fresh.
+		m.restoreAskName = name
+		m.restoreAskFilter = workspaceFilter
+		m.restoreSkipCursor = 0
+		m.mode = modeRestoreSkip
+		return nil
 	default:
 		m.restoreAskName = name
 		m.restoreAskFilter = workspaceFilter

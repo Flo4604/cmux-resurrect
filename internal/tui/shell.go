@@ -68,6 +68,7 @@ type ShellModel struct {
 	restoreAskFilter  string // workspace filter pending restore
 	restoreAskCursor  int    // 0 = replace, 1 = add
 	restoreSkipCursor int    // 0 = skip matching, 1 = recreate all
+	restoreAskHint    orchestrate.RestoreHint
 }
 
 // NewShellModel creates the interactive shell model.
@@ -417,9 +418,15 @@ func (m *ShellModel) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *ShellModel) updateRestoreAsk(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	selectReplace := func() {
-		m.restoreSkipCursor = 0
-		m.mode = modeRestoreSkip
+	selectReplace := func() (tea.Model, tea.Cmd) {
+		if m.restoreAskHint == orchestrate.HintAskBoth {
+			m.restoreSkipCursor = 0
+			m.mode = modeRestoreSkip
+			return m, nil
+		}
+		// HintAskMode — no matching tabs, auto-Fresh.
+		m.mode = modePrompt
+		return m, m.startRestore(m.restoreAskName, m.restoreAskFilter, orchestrate.RestoreModeReplace, false)
 	}
 	selectAdd := func() (tea.Model, tea.Cmd) {
 		m.mode = modePrompt
@@ -439,8 +446,7 @@ func (m *ShellModel) updateRestoreAsk(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyEnter:
 		if m.restoreAskCursor == 0 {
-			selectReplace()
-			return m, nil
+			return selectReplace()
 		}
 		return selectAdd()
 	case tea.KeyEsc:
@@ -453,12 +459,12 @@ func (m *ShellModel) updateRestoreAsk(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(msg.Runes) == 1 {
 			switch msg.Runes[0] {
 			case 'r', 'R':
-				selectReplace()
-				return m, nil
+				return selectReplace()
 			case 'a', 'A':
 				return selectAdd()
 			}
 		}
+		// Invalid key — ignore.
 	}
 	return m, nil
 }

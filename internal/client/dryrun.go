@@ -11,6 +11,7 @@ type DryRunFormatter interface {
 	FmtFocusPane(paneRef, workspaceRef string) string
 	FmtSend(workspaceRef, text string) string
 	FmtPinWorkspace(ref string) string
+	FmtUnpinWorkspace(ref string) string
 	FmtNewPane(paneType, direction, ref, url string) string
 }
 
@@ -37,6 +38,9 @@ func (CmuxDryRun) FmtSend(workspaceRef, text string) string {
 }
 func (CmuxDryRun) FmtPinWorkspace(ref string) string {
 	return fmt.Sprintf("cmux workspace-action --action pin --workspace %s", ref)
+}
+func (CmuxDryRun) FmtUnpinWorkspace(ref string) string {
+	return fmt.Sprintf("cmux workspace-action --action unpin --workspace %s", ref)
 }
 func (CmuxDryRun) FmtNewPane(paneType, direction, ref, url string) string {
 	cmd := fmt.Sprintf("cmux new-pane --type %s --direction %s --workspace %s", paneType, direction, ref)
@@ -69,6 +73,9 @@ func (GhosttyDryRun) FmtSend(workspaceRef, text string) string {
 }
 func (GhosttyDryRun) FmtPinWorkspace(ref string) string {
 	return "# pin: not supported by Ghostty"
+}
+func (GhosttyDryRun) FmtUnpinWorkspace(ref string) string {
+	return "# unpin: not supported by Ghostty"
 }
 func (GhosttyDryRun) FmtNewPane(paneType, direction, ref, url string) string {
 	if paneType == "browser" && url != "" {

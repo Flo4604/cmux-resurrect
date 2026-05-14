@@ -72,6 +72,10 @@ func (g *GhosttyClient) PinWorkspace(ref string) error {
 	return nil // Ghostty does not support pinning tabs
 }
 
+func (g *GhosttyClient) UnpinWorkspace(ref string) error {
+	return nil // Ghostty does not support pinning tabs
+}
+
 // parseTabIndex extracts the 1-based tab index from a ref like "tab:3".
 func parseTabIndex(ref string) (int, error) {
 	parts := strings.SplitN(ref, ":", 2)

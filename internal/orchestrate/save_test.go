@@ -49,6 +49,7 @@ func (m *mockClient) NewPane(opts client.NewPaneOpts) (string, error) {
 func (m *mockClient) FocusPane(pane, ws string) error          { return nil }
 func (m *mockClient) Send(ws, surf, text string) error         { return nil }
 func (m *mockClient) PinWorkspace(ref string) error            { return nil }
+func (m *mockClient) UnpinWorkspace(ref string) error          { return nil }
 func (m *mockClient) CloseWorkspace(ref string) error          { return nil }
 func (m *mockClient) DryRunFormatter() client.DryRunFormatter  { return client.CmuxDryRun{} }
 

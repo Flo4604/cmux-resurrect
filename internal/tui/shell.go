@@ -19,6 +19,7 @@ const (
 	modeBrowse
 	modeConfirm
 	modeRestoreAsk
+	modeRestoreSkip // second question: skip matching tabs or recreate?
 )
 
 const maxHistory = 50
@@ -63,9 +64,10 @@ type ShellModel struct {
 	confirmFn  func()
 
 	// Restore-ask state (mode picker before restore)
-	restoreAskName   string // layout name pending restore
-	restoreAskFilter string // workspace filter pending restore
-	restoreAskCursor int    // 0 = replace, 1 = add
+	restoreAskName    string // layout name pending restore
+	restoreAskFilter  string // workspace filter pending restore
+	restoreAskCursor  int    // 0 = replace, 1 = add
+	restoreSkipCursor int    // 0 = skip matching, 1 = recreate all
 }
 
 // NewShellModel creates the interactive shell model.
@@ -159,6 +161,8 @@ func (m *ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateConfirm(msg)
 		case modeRestoreAsk:
 			return m.updateRestoreAsk(msg)
+		case modeRestoreSkip:
+			return m.updateRestoreSkip(msg)
 		}
 	}
 
@@ -413,6 +417,15 @@ func (m *ShellModel) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *ShellModel) updateRestoreAsk(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	selectReplace := func() {
+		m.restoreSkipCursor = 0
+		m.mode = modeRestoreSkip
+	}
+	selectAdd := func() (tea.Model, tea.Cmd) {
+		m.mode = modePrompt
+		return m, m.startRestore(m.restoreAskName, m.restoreAskFilter, orchestrate.RestoreModeAdd, true)
+	}
+
 	switch msg.Type {
 	case tea.KeyUp:
 		if m.restoreAskCursor > 0 {
@@ -425,12 +438,11 @@ func (m *ShellModel) updateRestoreAsk(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyEnter:
-		mode := orchestrate.RestoreModeReplace
-		if m.restoreAskCursor == 1 {
-			mode = orchestrate.RestoreModeAdd
+		if m.restoreAskCursor == 0 {
+			selectReplace()
+			return m, nil
 		}
-		m.mode = modePrompt
-		return m, m.startRestore(m.restoreAskName, m.restoreAskFilter, mode)
+		return selectAdd()
 	case tea.KeyEsc:
 		m.mode = modePrompt
 		m.output.WriteString(shellDimStyle.Render("  Cancelled"))
@@ -441,11 +453,45 @@ func (m *ShellModel) updateRestoreAsk(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(msg.Runes) == 1 {
 			switch msg.Runes[0] {
 			case 'r', 'R':
-				m.mode = modePrompt
-				return m, m.startRestore(m.restoreAskName, m.restoreAskFilter, orchestrate.RestoreModeReplace)
+				selectReplace()
+				return m, nil
 			case 'a', 'A':
+				return selectAdd()
+			}
+		}
+	}
+	return m, nil
+}
+
+func (m *ShellModel) updateRestoreSkip(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyUp:
+		if m.restoreSkipCursor > 0 {
+			m.restoreSkipCursor--
+		}
+		return m, nil
+	case tea.KeyDown:
+		if m.restoreSkipCursor < 1 {
+			m.restoreSkipCursor++
+		}
+		return m, nil
+	case tea.KeyEnter:
+		skipMatching := m.restoreSkipCursor == 0
+		m.mode = modePrompt
+		return m, m.startRestore(m.restoreAskName, m.restoreAskFilter, orchestrate.RestoreModeReplace, skipMatching)
+	case tea.KeyEsc:
+		// Go back to mode picker.
+		m.mode = modeRestoreAsk
+		return m, nil
+	case tea.KeyRunes:
+		if len(msg.Runes) == 1 {
+			switch msg.Runes[0] {
+			case 's', 'S':
 				m.mode = modePrompt
-				return m, m.startRestore(m.restoreAskName, m.restoreAskFilter, orchestrate.RestoreModeAdd)
+				return m, m.startRestore(m.restoreAskName, m.restoreAskFilter, orchestrate.RestoreModeReplace, true)
+			case 'f', 'F':
+				m.mode = modePrompt
+				return m, m.startRestore(m.restoreAskName, m.restoreAskFilter, orchestrate.RestoreModeReplace, false)
 			}
 		}
 	}
@@ -722,6 +768,25 @@ func (m *ShellModel) View() string {
 		}
 		b.WriteString("\n")
 		b.WriteString(shellDimStyle.Render("  ↑/↓ select · ↵ confirm · r/a shortcut · esc cancel"))
+		b.WriteString("\n")
+		return prompt + header + "\n\n" + b.String()
+	case modeRestoreSkip:
+		var b strings.Builder
+		b.WriteString("  Tabs already open match the layout.\n\n")
+		labels := []string{
+			"Skip  — leave matching tabs as they are",
+			"Fresh — close and recreate from layout",
+		}
+		keys := []string{"s", "f"}
+		for i, label := range labels {
+			if i == m.restoreSkipCursor {
+				fmt.Fprintf(&b, "  %s %s  %s\n", shellSuccessStyle.Render("▸"), shellSuccessStyle.Render("["+keys[i]+"]"), label)
+			} else {
+				fmt.Fprintf(&b, "    %s  %s\n", shellDimStyle.Render("["+keys[i]+"]"), label)
+			}
+		}
+		b.WriteString("\n")
+		b.WriteString(shellDimStyle.Render("  ↑/↓ select · ↵ confirm · s/f shortcut · esc back"))
 		b.WriteString("\n")
 		return prompt + header + "\n\n" + b.String()
 	default:

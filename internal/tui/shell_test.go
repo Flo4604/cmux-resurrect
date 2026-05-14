@@ -172,17 +172,20 @@ func TestShellModel_RestoreAsk_RSelectsReplace(t *testing.T) {
 		t.Fatalf("expected modeRestoreAsk, got %d", sm.mode)
 	}
 
-	// Press 'r' for replace — should leave modeRestoreAsk.
+	// Press 'r' for replace — should transition to modeRestoreSkip (second question).
 	result2, _ := sm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	sm2 := result2.(*ShellModel)
 
-	if sm2.mode != modePrompt {
-		t.Errorf("expected modePrompt after selection, got %d", sm2.mode)
+	if sm2.mode != modeRestoreSkip {
+		t.Errorf("expected modeRestoreSkip after 'r', got %d", sm2.mode)
 	}
-	// Without a connected client startRestore prints an error and returns nil cmd,
-	// but the important thing is that the mode picker resolved to modePrompt.
-	if !strings.Contains(sm2.lastOutput, "No backend connected") {
-		t.Error("expected 'No backend connected' error since client is nil")
+
+	// Press 's' for skip — should start restore.
+	result3, _ := sm2.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	sm3 := result3.(*ShellModel)
+
+	if sm3.mode != modePrompt {
+		t.Errorf("expected modePrompt after 's', got %d", sm3.mode)
 	}
 }
 

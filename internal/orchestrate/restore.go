@@ -41,7 +41,11 @@ type RestoreResult struct {
 
 // Restore loads a layout and recreates it in cmux.
 // When workspaceFilter is non-empty, only the workspace matching that title is restored.
-func (r *Restorer) Restore(name string, dryRun bool, mode RestoreMode, workspaceFilter string) (*RestoreResult, error) {
+// When skipMatching is true, workspaces whose title already exists are left untouched.
+// When skipMatching is false (and mode is Replace), matching workspaces are also closed
+// and recreated from the layout — useful when the saved layout has commands (e.g. AI
+// resume) that the live tab no longer runs.
+func (r *Restorer) Restore(name string, dryRun bool, mode RestoreMode, workspaceFilter string, skipMatching bool) (*RestoreResult, error) {
 	layout, err := r.Store.Load(name)
 	if err != nil {
 		return nil, fmt.Errorf("load layout: %w", err)
@@ -110,17 +114,21 @@ func (r *Restorer) Restore(name string, dryRun bool, mode RestoreMode, workspace
 			for _, ws := range existing {
 				existingTitles[ws.Title] = true
 
-				// In replace mode, close workspaces NOT in the layout (sync).
-				// Skip the caller workspace — it must survive.
-				if mode == RestoreModeReplace && ws.Ref != callerRef && !layoutTitles[ws.Title] {
-					// Unpin first to avoid "pinned can't close" errors.
-					_ = r.Client.UnpinWorkspace(ws.Ref)
-					if err := r.Client.CloseWorkspace(ws.Ref); err != nil {
-						result.Errors = append(result.Errors, fmt.Sprintf("close %s (%s): %v", ws.Ref, ws.Title, err))
-					} else {
-						result.WorkspacesClosed++
+				if mode == RestoreModeReplace && ws.Ref != callerRef {
+					// Decide whether to close this workspace:
+					// - Not in layout → always close (stale)
+					// - In layout + skipMatching → keep (sync)
+					// - In layout + !skipMatching → close (fresh recreate)
+					shouldClose := !layoutTitles[ws.Title] || !skipMatching
+					if shouldClose {
+						_ = r.Client.UnpinWorkspace(ws.Ref)
+						if err := r.Client.CloseWorkspace(ws.Ref); err != nil {
+							result.Errors = append(result.Errors, fmt.Sprintf("close %s (%s): %v", ws.Ref, ws.Title, err))
+						} else {
+							result.WorkspacesClosed++
+						}
+						time.Sleep(DelayAfterClose)
 					}
-					time.Sleep(DelayAfterClose)
 				}
 			}
 			if result.WorkspacesClosed > 0 {
@@ -138,9 +146,9 @@ func (r *Restorer) Restore(name string, dryRun bool, mode RestoreMode, workspace
 		return workspaces[i].Index < workspaces[j].Index
 	})
 
-	// Create only workspaces that don't already exist (both modes).
+	// Create workspaces. Skip existing ones only when skipMatching is true.
 	for _, ws := range workspaces {
-		if !dryRun && existingTitles[ws.Title] {
+		if !dryRun && skipMatching && existingTitles[ws.Title] {
 			if r.OnProgress != nil {
 				r.OnProgress(ws.Title, len(ws.Panes), fmt.Errorf("already open, skipped"))
 			}

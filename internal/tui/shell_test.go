@@ -228,3 +228,26 @@ func TestShellModel_RestoreExplicitMode_SkipsPrompt(t *testing.T) {
 		t.Errorf("expected modePrompt, got %d", sm.mode)
 	}
 }
+
+func TestShellModel_ConfirmFnError_NoSuccessMsg(t *testing.T) {
+	m := NewShellModel(nil, nil, client.BackendCmux, "")
+
+	// Set up a confirmFn that writes an error.
+	m.mode = modeConfirm
+	m.confirmMsg = "Delete?"
+	m.confirmFn = func() {
+		m.output.WriteString(shellErrorStyle.Render("  ✗ something failed"))
+		m.output.WriteString("\n")
+	}
+
+	// Press 'y'
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	sm := result.(*ShellModel)
+
+	if strings.Contains(sm.lastOutput, "Done") {
+		t.Error("should not show 'Done' when confirmFn wrote an error")
+	}
+	if !strings.Contains(sm.lastOutput, "something failed") {
+		t.Error("should show the error from confirmFn")
+	}
+}

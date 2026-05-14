@@ -10,6 +10,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// readKey reads a single keypress in raw terminal mode.
+func readKey() (byte, error) {
+	state, err := term.MakeRaw(os.Stdin.Fd())
+	if err != nil {
+		return 0, fmt.Errorf("cancelled")
+	}
+	buf := make([]byte, 3)
+	n, _ := os.Stdin.Read(buf)
+	term.Restore(os.Stdin.Fd(), state)
+	if n == 0 {
+		return 0, fmt.Errorf("cancelled")
+	}
+	return buf[0], nil
+}
+
 var restoreDryRun bool
 var restoreMode string
 
@@ -129,25 +144,49 @@ func runRestore(cmd *cobra.Command, args []string) error {
 		case "add":
 			mode = orchestrate.RestoreModeAdd
 		default:
-			// Single workspace restore defaults to add mode (no prompt).
 			if workspaceFilter != "" {
 				mode = orchestrate.RestoreModeAdd
 			} else {
-				// Interactive prompt.
-				prompted, err := promptRestoreMode()
-				if err != nil {
-					fmt.Fprintln(os.Stderr, "\n"+dimStyle.Render("Cancelled."))
-					return nil
+				layout, loadErr := store.Load(name)
+				if loadErr != nil {
+					return loadErr
 				}
-				mode = prompted
-				// For replace mode, ask about matching tabs.
-				if mode == orchestrate.RestoreModeReplace {
-					skip, err := promptSkipMatching()
+				titles := make([]string, len(layout.Workspaces))
+				for i, ws := range layout.Workspaces {
+					titles[i] = ws.Title
+				}
+				detection := orchestrate.DetectRestoreState(cl, titles)
+
+				switch detection.Hint {
+				case orchestrate.HintNoop:
+					fmt.Fprintln(os.Stderr)
+					fmt.Fprintln(os.Stderr, dimStyle.Render("Layout already matches current tabs. Nothing to do."))
+					return nil
+				case orchestrate.HintAutoAdd:
+					mode = orchestrate.RestoreModeAdd
+				case orchestrate.HintAskMode:
+					prompted, err := promptRestoreMode()
 					if err != nil {
 						fmt.Fprintln(os.Stderr, "\n"+dimStyle.Render("Cancelled."))
 						return nil
 					}
-					skipMatching = skip
+					mode = prompted
+					skipMatching = false
+				case orchestrate.HintAskBoth:
+					prompted, err := promptRestoreMode()
+					if err != nil {
+						fmt.Fprintln(os.Stderr, "\n"+dimStyle.Render("Cancelled."))
+						return nil
+					}
+					mode = prompted
+					if mode == orchestrate.RestoreModeReplace {
+						skip, err := promptSkipMatching()
+						if err != nil {
+							fmt.Fprintln(os.Stderr, "\n"+dimStyle.Render("Cancelled."))
+							return nil
+						}
+						skipMatching = skip
+					}
 				}
 			}
 		}
@@ -221,31 +260,22 @@ func promptRestoreMode() (orchestrate.RestoreMode, error) {
 	fmt.Fprintf(os.Stderr, "  %s  Keep all existing %s, add missing\n\n", cyanStyle.Render("[a]dd"), unitName(2))
 	fmt.Fprintf(os.Stderr, "Choice [r/a]: ")
 
-	// Read a single keypress in raw mode — no Enter needed, Escape cancels cleanly.
-	state, err := term.MakeRaw(os.Stdin.Fd())
-	if err != nil {
-		return 0, fmt.Errorf("cancelled")
-	}
-
-	buf := make([]byte, 3)
-	n, _ := os.Stdin.Read(buf)
-
-	// Restore terminal BEFORE printing — raw mode turns \n into bare LF (no CR).
-	term.Restore(os.Stdin.Fd(), state)
-	fmt.Fprintln(os.Stderr)
-
-	if n == 0 || buf[0] == 0x1b {
-		return 0, fmt.Errorf("cancelled")
-	}
-
-	key := strings.ToLower(string(buf[:1]))
-	switch key {
-	case "r":
-		return orchestrate.RestoreModeReplace, nil
-	case "a":
-		return orchestrate.RestoreModeAdd, nil
-	default:
-		return 0, fmt.Errorf("cancelled")
+	for {
+		key, err := readKey()
+		if err != nil {
+			return 0, err
+		}
+		switch key {
+		case 'r', 'R':
+			fmt.Fprintln(os.Stderr)
+			return orchestrate.RestoreModeReplace, nil
+		case 'a', 'A':
+			fmt.Fprintln(os.Stderr)
+			return orchestrate.RestoreModeAdd, nil
+		case 0x1b, 'q', 'Q', 0x03:
+			fmt.Fprintln(os.Stderr)
+			return 0, fmt.Errorf("cancelled")
+		}
 	}
 }
 
@@ -255,29 +285,22 @@ func promptSkipMatching() (bool, error) {
 	fmt.Fprintf(os.Stderr, "  %s  Close and recreate from layout\n\n", cyanStyle.Render("[f]resh"))
 	fmt.Fprintf(os.Stderr, "Choice [s/f]: ")
 
-	state, err := term.MakeRaw(os.Stdin.Fd())
-	if err != nil {
-		return true, fmt.Errorf("cancelled")
-	}
-
-	buf := make([]byte, 3)
-	n, _ := os.Stdin.Read(buf)
-
-	term.Restore(os.Stdin.Fd(), state)
-	fmt.Fprintln(os.Stderr)
-
-	if n == 0 || buf[0] == 0x1b {
-		return true, fmt.Errorf("cancelled")
-	}
-
-	key := strings.ToLower(string(buf[:1]))
-	switch key {
-	case "s":
-		return true, nil // skip matching
-	case "f":
-		return false, nil // fresh — recreate all
-	default:
-		return true, fmt.Errorf("cancelled")
+	for {
+		key, err := readKey()
+		if err != nil {
+			return true, err
+		}
+		switch key {
+		case 's', 'S':
+			fmt.Fprintln(os.Stderr)
+			return true, nil
+		case 'f', 'F':
+			fmt.Fprintln(os.Stderr)
+			return false, nil
+		case 0x1b, 'q', 'Q', 0x03:
+			fmt.Fprintln(os.Stderr)
+			return true, fmt.Errorf("cancelled")
+		}
 	}
 }
 

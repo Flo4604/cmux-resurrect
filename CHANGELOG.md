@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.12.0] — 2026-05-14
+
+### Added
+- **Sync-based restore** — restore now intelligently syncs your session instead of blindly destroying and recreating tabs. Matching tabs (by title) are kept untouched in both replace and add modes — no more killing running Claude sessions or dev servers just to reopen them
+- **Restore-mode prompt in TUI** — the interactive shell now shows a Replace/Add picker when running `restore <name>` without a pre-configured mode, matching the CLI picker behavior
+- **Restore-mode prompt in CLI** — `crex restore <name>` now prompts for Replace/Add instead of silently defaulting to replace. Use `--mode replace` or `--mode add` to skip the prompt in scripts
+- **UnpinWorkspace** — new backend method to unpin workspaces before closing, preventing "pinned can't close" errors during replace mode
+
+### Changed
+- **Replace mode** — now only closes workspaces NOT in the layout (instead of closing everything). Workspaces matching the layout are preserved. Pinned workspaces are automatically unpinned before closing
+- **Add mode** — same skip-matching behavior, but extra workspaces are left alone (not closed)
+- **Restore output labels** — CLI now shows "Syncing (replace)" / "Syncing (add)" to reflect the new non-destructive behavior
+
+### Fixed
+- **TUI confirmation false success** — `updateConfirm` no longer shows "Done" when the confirmation action wrote an error (e.g. failed delete). The error message is now shown alone without a misleading success indicator
+
+---
+
 ## [v1.9.0] — 2026-05-06
 
 ### Added
@@ -296,3 +314,4 @@ Initial public release.
 [v1.0.2]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.0.2
 [v1.0.1]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.0.1
 [v1.0.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.0.0
+[v1.12.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.12.0

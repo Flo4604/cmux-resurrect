@@ -112,6 +112,7 @@ func runRestore(cmd *cobra.Command, args []string) error {
 
 	// Determine restore mode.
 	var mode orchestrate.RestoreMode
+	skipMatching := true // default: keep matching tabs
 	switch {
 	case restoreMode == "replace":
 		mode = orchestrate.RestoreModeReplace
@@ -139,6 +140,15 @@ func runRestore(cmd *cobra.Command, args []string) error {
 					return nil
 				}
 				mode = prompted
+				// For replace mode, ask about matching tabs.
+				if mode == orchestrate.RestoreModeReplace {
+					skip, err := promptSkipMatching()
+					if err != nil {
+						fmt.Fprintln(os.Stderr, dimStyle.Render("Cancelled."))
+						return nil
+					}
+					skipMatching = skip
+				}
 			}
 		}
 	}
@@ -155,7 +165,7 @@ func runRestore(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "%s %s\n", yellowStyle.Render(action), greenStyle.Render(name))
 	}
 
-	result, err := restorer.Restore(name, restoreDryRun, mode, workspaceFilter)
+	result, err := restorer.Restore(name, restoreDryRun, mode, workspaceFilter, skipMatching)
 	if err != nil {
 		return err
 	}
@@ -240,6 +250,37 @@ func promptRestoreMode() (orchestrate.RestoreMode, error) {
 		return orchestrate.RestoreModeAdd, nil
 	default:
 		return 0, fmt.Errorf("cancelled")
+	}
+}
+
+func promptSkipMatching() (bool, error) {
+	fmt.Fprintf(os.Stderr, "\nTabs already open match the layout.\n\n")
+	fmt.Fprintf(os.Stderr, "  %s  Leave matching tabs as they are\n", cyanStyle.Render("[s]kip"))
+	fmt.Fprintf(os.Stderr, "  %s  Close and recreate from layout\n\n", cyanStyle.Render("[f]resh"))
+	fmt.Fprintf(os.Stderr, "Choice [s/f]: ")
+
+	state, err := term.MakeRaw(os.Stdin.Fd())
+	if err != nil {
+		return true, fmt.Errorf("cancelled")
+	}
+	defer term.Restore(os.Stdin.Fd(), state)
+
+	buf := make([]byte, 3)
+	n, _ := os.Stdin.Read(buf)
+	fmt.Fprintln(os.Stderr)
+
+	if n == 0 || buf[0] == 0x1b {
+		return true, fmt.Errorf("cancelled")
+	}
+
+	key := strings.ToLower(string(buf[:1]))
+	switch key {
+	case "s":
+		return true, nil // skip matching
+	case "f":
+		return false, nil // fresh — recreate all
+	default:
+		return true, fmt.Errorf("cancelled")
 	}
 }
 

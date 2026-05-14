@@ -159,9 +159,9 @@ func (m *ShellModel) execRestore(name string, workspaceFilter string) tea.Cmd {
 	// Determine mode from setting.
 	switch m.restoreMode {
 	case "replace":
-		return m.startRestore(name, workspaceFilter, orchestrate.RestoreModeReplace)
+		return m.startRestore(name, workspaceFilter, orchestrate.RestoreModeReplace, true)
 	case "add":
-		return m.startRestore(name, workspaceFilter, orchestrate.RestoreModeAdd)
+		return m.startRestore(name, workspaceFilter, orchestrate.RestoreModeAdd, true)
 	default:
 		// "ask" or empty — show the mode picker.
 		m.restoreAskName = name
@@ -173,7 +173,7 @@ func (m *ShellModel) execRestore(name string, workspaceFilter string) tea.Cmd {
 }
 
 // startRestore launches the async restore with a specific mode.
-func (m *ShellModel) startRestore(name, workspaceFilter string, mode orchestrate.RestoreMode) tea.Cmd {
+func (m *ShellModel) startRestore(name, workspaceFilter string, mode orchestrate.RestoreMode, skipMatching bool) tea.Cmd {
 	if m.client == nil {
 		m.output.WriteString(shellErrorStyle.Render("  ✗ No backend connected"))
 		m.output.WriteString("\n\n")
@@ -184,9 +184,9 @@ func (m *ShellModel) startRestore(name, workspaceFilter string, mode orchestrate
 	if workspaceFilter != "" {
 		m.output.WriteString(shellDimStyle.Render(fmt.Sprintf("  Restoring %q from %q…", workspaceFilter, name)))
 	} else {
-		action := "Replacing with"
+		action := "Syncing (replace)"
 		if mode == orchestrate.RestoreModeAdd {
-			action = "Adding from"
+			action = "Syncing (add)"
 		}
 		m.output.WriteString(shellDimStyle.Render(fmt.Sprintf("  %s %q…", action, name)))
 	}
@@ -197,12 +197,13 @@ func (m *ShellModel) startRestore(name, workspaceFilter string, mode orchestrate
 	store := m.store
 	filter := workspaceFilter
 	restoreMode := mode
+	skip := skipMatching
 	return func() tea.Msg {
 		restorer := &orchestrate.Restorer{
 			Client: cl,
 			Store:  store,
 		}
-		result, err := restorer.Restore(name, false, restoreMode, filter)
+		result, err := restorer.Restore(name, false, restoreMode, filter, skip)
 		return restoreResultMsg{result: result, err: err}
 	}
 }

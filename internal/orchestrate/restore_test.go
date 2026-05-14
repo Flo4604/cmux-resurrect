@@ -46,7 +46,7 @@ func TestRestore_DryRun(t *testing.T) {
 	mc := &mockClient{sidebarCWDs: map[string]string{}}
 	restorer := &Restorer{Client: mc, Store: store}
 
-	result, err := restorer.Restore("dry-test", true, RestoreModeAdd, "")
+	result, err := restorer.Restore("dry-test", true, RestoreModeAdd, "", true)
 	if err != nil {
 		t.Fatalf("restore dry-run: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestRestore_LayoutNotFound(t *testing.T) {
 	mc := &mockClient{}
 
 	restorer := &Restorer{Client: mc, Store: store}
-	_, err := restorer.Restore("nonexistent", false, RestoreModeAdd, "")
+	_, err := restorer.Restore("nonexistent", false, RestoreModeAdd, "", true)
 	if err == nil {
 		t.Error("expected error for nonexistent layout")
 	}
@@ -133,7 +133,7 @@ func TestRestore_WorkspaceFilter(t *testing.T) {
 	mc := &mockClient{sidebarCWDs: map[string]string{}}
 	restorer := &Restorer{Client: mc, Store: store}
 
-	result, err := restorer.Restore("filter-test", true, RestoreModeAdd, "1 docs")
+	result, err := restorer.Restore("filter-test", true, RestoreModeAdd, "1 docs", true)
 	if err != nil {
 		t.Fatalf("restore with filter: %v", err)
 	}
@@ -173,7 +173,7 @@ func TestRestore_EmptyFilter_RestoresAll(t *testing.T) {
 	mc := &mockClient{sidebarCWDs: map[string]string{}}
 	restorer := &Restorer{Client: mc, Store: store}
 
-	result, err := restorer.Restore("all-test", true, RestoreModeAdd, "")
+	result, err := restorer.Restore("all-test", true, RestoreModeAdd, "", true)
 	if err != nil {
 		t.Fatalf("restore all: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestRestore_WorkspaceFilter_SubstringMatch(t *testing.T) {
 	restorer := &Restorer{Client: mc, Store: store}
 
 	// "trash" should match "0 🗑️ Trash" (case-insensitive substring).
-	result, err := restorer.Restore("sub-test", true, RestoreModeAdd, "trash")
+	result, err := restorer.Restore("sub-test", true, RestoreModeAdd, "trash", true)
 	if err != nil {
 		t.Fatalf("restore with substring filter: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestRestore_WorkspaceFilter_SubstringMatch(t *testing.T) {
 	}
 
 	// "claude" should match "⠐ Claude Code".
-	result, err = restorer.Restore("sub-test", true, RestoreModeAdd, "claude")
+	result, err = restorer.Restore("sub-test", true, RestoreModeAdd, "claude", true)
 	if err != nil {
 		t.Fatalf("restore with substring filter: %v", err)
 	}
@@ -259,7 +259,7 @@ func TestRestore_WorkspaceFilter_NoMatch(t *testing.T) {
 	mc := &mockClient{sidebarCWDs: map[string]string{}}
 	restorer := &Restorer{Client: mc, Store: store}
 
-	_, err := restorer.Restore("nomatch-test", true, RestoreModeAdd, "zzz")
+	_, err := restorer.Restore("nomatch-test", true, RestoreModeAdd, "zzz", true)
 	if err == nil {
 		t.Fatal("expected error for non-matching filter")
 	}
@@ -285,7 +285,7 @@ func TestRestore_WorkspaceFilter_AmbiguousMatch(t *testing.T) {
 	mc := &mockClient{sidebarCWDs: map[string]string{}}
 	restorer := &Restorer{Client: mc, Store: store}
 
-	_, err := restorer.Restore("ambig-test", true, RestoreModeAdd, "dev")
+	_, err := restorer.Restore("ambig-test", true, RestoreModeAdd, "dev", true)
 	if err == nil {
 		t.Fatal("expected error for ambiguous filter")
 	}
@@ -314,7 +314,7 @@ func TestRestore_WorkspaceFilter_ExactMatchPriority(t *testing.T) {
 	restorer := &Restorer{Client: mc, Store: store}
 
 	// "dev" exactly matches "dev", should NOT be ambiguous even though "dev-tools" also contains "dev".
-	result, err := restorer.Restore("exact-test", true, RestoreModeAdd, "dev")
+	result, err := restorer.Restore("exact-test", true, RestoreModeAdd, "dev", true)
 	if err != nil {
 		t.Fatalf("exact match should not be ambiguous: %v", err)
 	}
@@ -340,7 +340,7 @@ func TestRestore_WorkspaceFilter_ExactMatchPriority_ReversedOrder(t *testing.T) 
 	restorer := &Restorer{Client: mc, Store: store}
 
 	// "dev" should exact-match "dev" at index 1, not pick "dev-tools" at index 0.
-	result, err := restorer.Restore("exact-rev-test", true, RestoreModeAdd, "dev")
+	result, err := restorer.Restore("exact-rev-test", true, RestoreModeAdd, "dev", true)
 	if err != nil {
 		t.Fatalf("exact match should not be ambiguous: %v", err)
 	}
@@ -375,7 +375,7 @@ func TestRestore_BrowserPane_DryRun(t *testing.T) {
 	mc := &mockClient{sidebarCWDs: map[string]string{}}
 	restorer := &Restorer{Client: mc, Store: store}
 
-	result, err := restorer.Restore("browser-test", true, RestoreModeAdd, "")
+	result, err := restorer.Restore("browser-test", true, RestoreModeAdd, "", true)
 	if err != nil {
 		t.Fatalf("restore dry-run: %v", err)
 	}
@@ -418,7 +418,7 @@ func TestRestore_MixedTerminalBrowserPanes_DryRun(t *testing.T) {
 	mc := &mockClient{sidebarCWDs: map[string]string{}}
 	restorer := &Restorer{Client: mc, Store: store}
 
-	result, err := restorer.Restore("mixed-test", true, RestoreModeAdd, "")
+	result, err := restorer.Restore("mixed-test", true, RestoreModeAdd, "", true)
 	if err != nil {
 		t.Fatalf("restore dry-run: %v", err)
 	}
@@ -561,7 +561,7 @@ func TestRestore_Replace_SkipsMatchingTitles(t *testing.T) {
 	)
 
 	restorer := &Restorer{Client: mc, Store: store}
-	result, err := restorer.Restore("sync-replace", false, RestoreModeReplace, "")
+	result, err := restorer.Restore("sync-replace", false, RestoreModeReplace, "", true)
 	if err != nil {
 		t.Fatalf("restore: %v", err)
 	}
@@ -616,7 +616,7 @@ func TestRestore_Add_SkipsMatchingTitles(t *testing.T) {
 	)
 
 	restorer := &Restorer{Client: mc, Store: store}
-	result, err := restorer.Restore("sync-add", false, RestoreModeAdd, "")
+	result, err := restorer.Restore("sync-add", false, RestoreModeAdd, "", true)
 	if err != nil {
 		t.Fatalf("restore: %v", err)
 	}
@@ -666,7 +666,7 @@ func TestRestore_Replace_UnpinsBeforeClose(t *testing.T) {
 	)
 
 	restorer := &Restorer{Client: mc, Store: store}
-	result, err := restorer.Restore("sync-unpin", false, RestoreModeReplace, "")
+	result, err := restorer.Restore("sync-unpin", false, RestoreModeReplace, "", true)
 	if err != nil {
 		t.Fatalf("restore: %v", err)
 	}

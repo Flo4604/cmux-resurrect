@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.13.0] — 2026-05-14
+
+### Added
+- **Smart restore pre-detection** — compares existing tabs against the layout before showing prompts. Fresh terminals auto-restore with zero questions. Layouts that already match print "nothing to do." Prompts only appear when the choice leads to different outcomes
+- **Skip/Fresh prompt** — when matching tabs exist, asks whether to leave them as-is or close and recreate from the layout (useful when saved commands like AI resume need to be re-sent)
+- **Single-keypress CLI prompts** — raw terminal mode reads one key instantly without requiring Enter. Invalid keys are silently ignored; only Escape/q cancels
+
+### Changed
+- **Restore prompt flow** — reduced from always-2-questions to 0, 1, or 2 depending on tab state. Most common case (fresh terminal or matching tabs only) needs at most one prompt
+- **`DetectRestoreState` function** — new detection engine computes matching/extras/missing tab counts and returns a `RestoreHint` that drives both CLI and TUI prompt logic
+
+### Fixed
+- **Raw mode newline alignment** — terminal state is now restored before printing newlines, preventing "Cancelled" from appearing at the wrong column
+- **Invalid key cancellation** — pressing random keys at restore prompts no longer cancels the operation; only Escape, q, or Ctrl-C exits
+
+---
+
 ## [v1.12.0] — 2026-05-14
 
 ### Added
@@ -315,3 +332,4 @@ Initial public release.
 [v1.0.1]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.0.1
 [v1.0.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.0.0
 [v1.12.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.12.0
+[v1.13.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.13.0

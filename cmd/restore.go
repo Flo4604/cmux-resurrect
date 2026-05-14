@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strings"
@@ -127,9 +128,17 @@ func runRestore(cmd *cobra.Command, args []string) error {
 		case "add":
 			mode = orchestrate.RestoreModeAdd
 		default:
-			// Single workspace restore defaults to add mode (no prompt needed).
+			// Single workspace restore defaults to add mode (no prompt).
 			if workspaceFilter != "" {
 				mode = orchestrate.RestoreModeAdd
+			} else {
+				// Interactive prompt.
+				prompted, err := promptRestoreMode()
+				if err != nil {
+					fmt.Fprintln(os.Stderr, dimStyle.Render("  Cancelled."))
+					return nil
+				}
+				mode = prompted
 			}
 		}
 	}
@@ -193,6 +202,27 @@ func runRestore(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stderr)
 	}
 	return nil
+}
+
+func promptRestoreMode() (orchestrate.RestoreMode, error) {
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintf(os.Stderr, "  How do you want to restore?\n\n")
+	fmt.Fprintf(os.Stderr, "    %s  Close non-matching %s, keep matching\n", cyanStyle.Render("[r]eplace"), unitName(2))
+	fmt.Fprintf(os.Stderr, "    %s  Keep all existing %s, add missing\n\n", cyanStyle.Render("[a]dd"), unitName(2))
+	fmt.Fprintf(os.Stderr, "  Choice [r/a]: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	answer, _ := reader.ReadString('\n')
+	answer = strings.TrimSpace(strings.ToLower(answer))
+
+	switch answer {
+	case "r", "replace":
+		return orchestrate.RestoreModeReplace, nil
+	case "a", "add":
+		return orchestrate.RestoreModeAdd, nil
+	default:
+		return 0, fmt.Errorf("cancelled")
+	}
 }
 
 func countBlanks(cmds []string) int {

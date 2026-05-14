@@ -1,11 +1,11 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/drolosoft/cmux-resurrect/internal/orchestrate"
 	"github.com/spf13/cobra"
 )
@@ -211,14 +211,32 @@ func promptRestoreMode() (orchestrate.RestoreMode, error) {
 	fmt.Fprintf(os.Stderr, "    %s  Keep all existing %s, add missing\n\n", cyanStyle.Render("[a]dd"), unitName(2))
 	fmt.Fprintf(os.Stderr, "  Choice [r/a]: ")
 
-	reader := bufio.NewReader(os.Stdin)
-	answer, _ := reader.ReadString('\n')
-	answer = strings.TrimSpace(strings.ToLower(answer))
+	// Read a single keypress in raw mode — no Enter needed, Escape cancels cleanly.
+	state, err := term.MakeRaw(os.Stdin.Fd())
+	if err != nil {
+		// Fallback: non-interactive stdin (pipe, CI). Cancel silently.
+		return 0, fmt.Errorf("cancelled")
+	}
+	defer term.Restore(os.Stdin.Fd(), state)
 
-	switch answer {
-	case "r", "replace":
+	buf := make([]byte, 3)
+	n, _ := os.Stdin.Read(buf)
+	fmt.Fprintln(os.Stderr) // newline after the keypress
+
+	if n == 0 {
+		return 0, fmt.Errorf("cancelled")
+	}
+
+	// Escape key is 0x1b.
+	if buf[0] == 0x1b {
+		return 0, fmt.Errorf("cancelled")
+	}
+
+	key := strings.ToLower(string(buf[:1]))
+	switch key {
+	case "r":
 		return orchestrate.RestoreModeReplace, nil
-	case "a", "add":
+	case "a":
 		return orchestrate.RestoreModeAdd, nil
 	default:
 		return 0, fmt.Errorf("cancelled")

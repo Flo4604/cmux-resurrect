@@ -3,9 +3,12 @@ package tui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/drolosoft/cmux-resurrect/internal/client"
+	"github.com/drolosoft/cmux-resurrect/internal/model"
+	"github.com/drolosoft/cmux-resurrect/internal/persist"
 )
 
 func TestShellModel_WelcomeInInit(t *testing.T) {
@@ -120,5 +123,108 @@ func TestShellModel_CtrlCQuits(t *testing.T) {
 	}
 	if cmd == nil {
 		t.Error("expected tea.Quit command")
+	}
+}
+
+func saveTestLayout(t *testing.T, dir string) persist.Store {
+	t.Helper()
+	store, err := persist.NewFileStore(dir)
+	if err != nil {
+		t.Fatalf("NewFileStore: %v", err)
+	}
+	layout := &model.Layout{
+		Name:    "test",
+		SavedAt: time.Now(),
+		Workspaces: []model.Workspace{{
+			Title: "ws1",
+			Panes: []model.Pane{{Type: "terminal"}},
+		}},
+	}
+	if err := store.Save("test", layout); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	return store
+}
+
+func TestShellModel_RestoreAsk_ShowsPrompt(t *testing.T) {
+	store := saveTestLayout(t, t.TempDir())
+	m := NewShellModel(store, nil, client.BackendCmux, "")
+	// restoreMode is "" (default) → should prompt
+
+	m.prompt.SetValue("restore test")
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	sm := result.(*ShellModel)
+
+	if sm.mode != modeRestoreAsk {
+		t.Fatalf("expected modeRestoreAsk (%d), got %d", modeRestoreAsk, sm.mode)
+	}
+}
+
+func TestShellModel_RestoreAsk_RSelectsReplace(t *testing.T) {
+	store := saveTestLayout(t, t.TempDir())
+	m := NewShellModel(store, nil, client.BackendCmux, "")
+
+	m.prompt.SetValue("restore test")
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	sm := result.(*ShellModel)
+
+	if sm.mode != modeRestoreAsk {
+		t.Fatalf("expected modeRestoreAsk, got %d", sm.mode)
+	}
+
+	// Press 'r' for replace — should leave modeRestoreAsk.
+	result2, _ := sm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	sm2 := result2.(*ShellModel)
+
+	if sm2.mode != modePrompt {
+		t.Errorf("expected modePrompt after selection, got %d", sm2.mode)
+	}
+	// Without a connected client startRestore prints an error and returns nil cmd,
+	// but the important thing is that the mode picker resolved to modePrompt.
+	if !strings.Contains(sm2.lastOutput, "No backend connected") {
+		t.Error("expected 'No backend connected' error since client is nil")
+	}
+}
+
+func TestShellModel_RestoreAsk_EscCancels(t *testing.T) {
+	store := saveTestLayout(t, t.TempDir())
+	m := NewShellModel(store, nil, client.BackendCmux, "")
+
+	m.prompt.SetValue("restore test")
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	sm := result.(*ShellModel)
+
+	// Press Escape to cancel
+	result2, cmd := sm.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	sm2 := result2.(*ShellModel)
+
+	if sm2.mode != modePrompt {
+		t.Error("expected modePrompt after cancel")
+	}
+	if cmd != nil {
+		t.Error("cancel should not trigger restore")
+	}
+	if !strings.Contains(sm2.lastOutput, "Cancelled") {
+		t.Error("should show Cancelled message")
+	}
+}
+
+func TestShellModel_RestoreExplicitMode_SkipsPrompt(t *testing.T) {
+	store := saveTestLayout(t, t.TempDir())
+	m := NewShellModel(store, nil, client.BackendCmux, "")
+	m.SetRestoreMode("add")
+
+	m.prompt.SetValue("restore test")
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	sm := result.(*ShellModel)
+
+	// Mode is "add" → should NOT enter modeRestoreAsk, should dispatch directly.
+	if sm.mode == modeRestoreAsk {
+		t.Error("explicit mode should skip the prompt")
+	}
+	// With no client connected, startRestore returns nil cmd (error printed),
+	// but the key point is that modeRestoreAsk was never entered.
+	if sm.mode != modePrompt {
+		t.Errorf("expected modePrompt, got %d", sm.mode)
 	}
 }

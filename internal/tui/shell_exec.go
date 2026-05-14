@@ -156,28 +156,43 @@ func (m *ShellModel) execSave(name string) {
 
 // execRestore restores a saved layout by name, optionally filtered to a single workspace.
 func (m *ShellModel) execRestore(name string, workspaceFilter string) tea.Cmd {
+	// Determine mode from setting.
+	switch m.restoreMode {
+	case "replace":
+		return m.startRestore(name, workspaceFilter, orchestrate.RestoreModeReplace)
+	case "add":
+		return m.startRestore(name, workspaceFilter, orchestrate.RestoreModeAdd)
+	default:
+		// "ask" or empty — show the mode picker.
+		m.restoreAskName = name
+		m.restoreAskFilter = workspaceFilter
+		m.restoreAskCursor = 0
+		m.mode = modeRestoreAsk
+		return nil
+	}
+}
+
+// startRestore launches the async restore with a specific mode.
+func (m *ShellModel) startRestore(name, workspaceFilter string, mode orchestrate.RestoreMode) tea.Cmd {
 	if m.client == nil {
 		m.output.WriteString(shellErrorStyle.Render("  ✗ No backend connected"))
 		m.output.WriteString("\n\n")
+		m.flushOutput()
 		return nil
 	}
 
 	if workspaceFilter != "" {
 		m.output.WriteString(shellDimStyle.Render(fmt.Sprintf("  Restoring %q from %q…", workspaceFilter, name)))
 	} else {
-		m.output.WriteString(shellDimStyle.Render(fmt.Sprintf("  Restoring %q…", name)))
+		action := "Replacing with"
+		if mode == orchestrate.RestoreModeAdd {
+			action = "Adding from"
+		}
+		m.output.WriteString(shellDimStyle.Render(fmt.Sprintf("  %s %q…", action, name)))
 	}
 	m.output.WriteString("\n")
+	m.flushOutput()
 
-	mode := orchestrate.RestoreModeAdd
-	switch m.restoreMode {
-	case "replace":
-		mode = orchestrate.RestoreModeReplace
-	case "add":
-		mode = orchestrate.RestoreModeAdd
-	}
-
-	// Run restore asynchronously so "Restoring..." renders immediately.
 	cl := m.client
 	store := m.store
 	filter := workspaceFilter

@@ -136,7 +136,7 @@ func runRestore(cmd *cobra.Command, args []string) error {
 				// Interactive prompt.
 				prompted, err := promptRestoreMode()
 				if err != nil {
-					fmt.Fprintln(os.Stderr, dimStyle.Render("Cancelled."))
+					fmt.Fprintln(os.Stderr, "\n"+dimStyle.Render("Cancelled."))
 					return nil
 				}
 				mode = prompted
@@ -144,7 +144,7 @@ func runRestore(cmd *cobra.Command, args []string) error {
 				if mode == orchestrate.RestoreModeReplace {
 					skip, err := promptSkipMatching()
 					if err != nil {
-						fmt.Fprintln(os.Stderr, dimStyle.Render("Cancelled."))
+						fmt.Fprintln(os.Stderr, "\n"+dimStyle.Render("Cancelled."))
 						return nil
 					}
 					skipMatching = skip

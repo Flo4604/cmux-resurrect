@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.13.1] — 2026-05-14
+
+### Fixed
+- **Daemon fork-detach** — `crex watch --daemon` now re-execs as a child process with `setsid`, creating a new session with no controlling terminal (`PPID=1`, `TTY=??`). Previously it ran in the parent shell's foreground process group, blocking new shell tabs until interrupted with Ctrl+C ([#4](https://github.com/drolosoft/cmux-resurrect/issues/4))
+- **Shell hook backgrounding** — `crex watch --shell-hook` now emits `nohup ... &!` (zsh), `nohup ... & disown` (bash), and `nohup ... &` (fish) for defense in depth. Users who already added the hook should regenerate it with `crex watch --shell-hook`
+
+---
+
 ## [v1.13.0] — 2026-05-14
 
 ### Added
@@ -333,3 +341,4 @@ Initial public release.
 [v1.0.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.0.0
 [v1.12.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.12.0
 [v1.13.0]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.13.0
+[v1.13.1]: https://github.com/drolosoft/cmux-resurrect/releases/tag/v1.13.1

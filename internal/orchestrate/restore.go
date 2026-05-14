@@ -93,52 +93,42 @@ func (r *Restorer) Restore(name string, dryRun bool, mode RestoreMode, workspace
 		DryRun:          dryRun,
 	}
 
-	// Remember the caller's workspace and snapshot existing workspace refs/titles.
+	// Build set of layout titles for sync comparison.
+	layoutTitles := make(map[string]bool, len(layout.Workspaces))
+	for _, ws := range layout.Workspaces {
+		layoutTitles[ws.Title] = true
+	}
+
+	// Snapshot existing workspace state.
 	var callerRef string
-	var callerTitle string
-	var oldRefs []string
 	existingTitles := make(map[string]bool)
 	if !dryRun {
 		if tree, err := r.Client.Tree(); err == nil && tree.Caller != nil {
 			callerRef = tree.Caller.WorkspaceRef
-			// Find the caller's title from the tree.
-			for _, w := range tree.Windows {
-				for _, ws := range w.Workspaces {
-					if ws.Ref == callerRef {
-						callerTitle = ws.Title
-					}
-				}
-			}
 		}
 		if existing, err := r.Client.ListWorkspaces(); err == nil {
 			for _, ws := range existing {
-				if mode == RestoreModeReplace {
-					oldRefs = append(oldRefs, ws.Ref)
-				}
 				existingTitles[ws.Title] = true
+
+				// In replace mode, close workspaces NOT in the layout (sync).
+				// Skip the caller workspace — it must survive.
+				if mode == RestoreModeReplace && ws.Ref != callerRef && !layoutTitles[ws.Title] {
+					// Unpin first to avoid "pinned can't close" errors.
+					_ = r.Client.UnpinWorkspace(ws.Ref)
+					if err := r.Client.CloseWorkspace(ws.Ref); err != nil {
+						result.Errors = append(result.Errors, fmt.Sprintf("close %s (%s): %v", ws.Ref, ws.Title, err))
+					} else {
+						result.WorkspacesClosed++
+					}
+					time.Sleep(DelayAfterClose)
+				}
+			}
+			if result.WorkspacesClosed > 0 {
+				time.Sleep(DelayAfterCloseAll)
 			}
 		}
 	} else if mode == RestoreModeReplace {
-		result.Commands = append(result.Commands, "# Close all existing workspaces (except caller)")
-	}
-
-	// In replace mode, close old workspaces BEFORE creating new ones.
-	// Skip the caller's workspace so the running terminal survives.
-	if mode == RestoreModeReplace && !dryRun {
-		for _, ref := range oldRefs {
-			if ref == callerRef {
-				continue
-			}
-			if err := r.Client.CloseWorkspace(ref); err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("close old %s: %v", ref, err))
-			} else {
-				result.WorkspacesClosed++
-			}
-			time.Sleep(DelayAfterClose)
-		}
-		if result.WorkspacesClosed > 0 {
-			time.Sleep(DelayAfterCloseAll)
-		}
+		result.Commands = append(result.Commands, "# Close workspaces not in layout (sync)")
 	}
 
 	// Sort workspaces by index.
@@ -148,23 +138,13 @@ func (r *Restorer) Restore(name string, dryRun bool, mode RestoreMode, workspace
 		return workspaces[i].Index < workspaces[j].Index
 	})
 
-	// Create new workspaces (skip duplicates in add mode, skip caller title in replace mode).
+	// Create only workspaces that don't already exist (both modes).
 	for _, ws := range workspaces {
-		if !dryRun {
-			// In add mode, skip any workspace whose title already exists.
-			// In replace mode, skip only the caller's title (all others were closed).
-			if mode == RestoreModeAdd && existingTitles[ws.Title] {
-				if r.OnProgress != nil {
-					r.OnProgress(ws.Title, len(ws.Panes), fmt.Errorf("already exists, skipped"))
-				}
-				continue
+		if !dryRun && existingTitles[ws.Title] {
+			if r.OnProgress != nil {
+				r.OnProgress(ws.Title, len(ws.Panes), fmt.Errorf("already open, skipped"))
 			}
-			if mode == RestoreModeReplace && callerTitle != "" && ws.Title == callerTitle {
-				if r.OnProgress != nil {
-					r.OnProgress(ws.Title, len(ws.Panes), fmt.Errorf("caller workspace, skipped"))
-				}
-				continue
-			}
+			continue
 		}
 
 		_, err := r.restoreWorkspace(ws, dryRun, result)
@@ -181,7 +161,7 @@ func (r *Restorer) Restore(name string, dryRun bool, mode RestoreMode, workspace
 		}
 	}
 
-	// Return focus to the caller's workspace (the terminal that ran crex).
+	// Return focus to the caller's workspace.
 	if callerRef != "" && !dryRun {
 		if err := r.Client.SelectWorkspace(callerRef); err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("select caller workspace: %v", err))

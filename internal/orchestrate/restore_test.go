@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/drolosoft/cmux-resurrect/internal/client"
 	"github.com/drolosoft/cmux-resurrect/internal/model"
 	"github.com/drolosoft/cmux-resurrect/internal/persist"
 )
@@ -454,4 +455,239 @@ func containsStr(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// syncMockClient implements client.Backend for sync-algorithm tests.
+// It tracks which refs were closed, unpinned, and how many workspaces were created.
+type syncMockClient struct {
+	existingWorkspaces []client.WorkspaceInfo
+	callerRef          string
+	callerTitle        string
+	closedRefs         map[string]bool
+	unpinnedRefs       map[string]bool
+	createdCount       int
+}
+
+func newSyncMockClient(existing []client.WorkspaceInfo, callerRef, callerTitle string) *syncMockClient {
+	return &syncMockClient{
+		existingWorkspaces: existing,
+		callerRef:          callerRef,
+		callerTitle:        callerTitle,
+		closedRefs:         make(map[string]bool),
+		unpinnedRefs:       make(map[string]bool),
+	}
+}
+
+func (m *syncMockClient) Ping() error { return nil }
+
+func (m *syncMockClient) Tree() (*client.TreeResponse, error) {
+	// Build a minimal tree with the caller set and workspaces listed.
+	var workspaces []client.TreeWorkspace
+	for _, ws := range m.existingWorkspaces {
+		workspaces = append(workspaces, client.TreeWorkspace{
+			Ref:   ws.Ref,
+			Title: ws.Title,
+		})
+	}
+	resp := &client.TreeResponse{
+		Windows: []client.TreeWindow{
+			{Ref: "window:1", Workspaces: workspaces},
+		},
+	}
+	if m.callerRef != "" {
+		resp.Caller = &client.CallerInfo{WorkspaceRef: m.callerRef}
+	}
+	return resp, nil
+}
+
+func (m *syncMockClient) SidebarState(ref string) (*client.SidebarState, error) {
+	return &client.SidebarState{CWD: "/tmp"}, nil
+}
+
+func (m *syncMockClient) ListWorkspaces() ([]client.WorkspaceInfo, error) {
+	return m.existingWorkspaces, nil
+}
+
+func (m *syncMockClient) NewWorkspace(opts client.NewWorkspaceOpts) (string, error) {
+	m.createdCount++
+	return "workspace:new", nil
+}
+
+func (m *syncMockClient) RenameWorkspace(ref, title string) error  { return nil }
+func (m *syncMockClient) SelectWorkspace(ref string) error         { return nil }
+func (m *syncMockClient) NewSplit(dir, ref string) (string, error) { return "surface:mock", nil }
+func (m *syncMockClient) NewPane(opts client.NewPaneOpts) (string, error) {
+	return "surface:new", nil
+}
+func (m *syncMockClient) FocusPane(pane, ws string) error  { return nil }
+func (m *syncMockClient) Send(ws, surf, text string) error { return nil }
+func (m *syncMockClient) PinWorkspace(ref string) error    { return nil }
+
+func (m *syncMockClient) UnpinWorkspace(ref string) error {
+	m.unpinnedRefs[ref] = true
+	return nil
+}
+
+func (m *syncMockClient) CloseWorkspace(ref string) error {
+	m.closedRefs[ref] = true
+	return nil
+}
+
+func (m *syncMockClient) DryRunFormatter() client.DryRunFormatter { return client.CmuxDryRun{} }
+
+func TestRestore_Replace_SkipsMatchingTitles(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := persist.NewFileStore(dir)
+
+	layout := &model.Layout{
+		Name:    "sync-replace",
+		Version: 1,
+		SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{Title: "dev", CWD: "/tmp/dev", Index: 0, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+			{Title: "docs", CWD: "/tmp/docs", Index: 1, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+			{Title: "new-tab", CWD: "/tmp/new", Index: 2, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+		},
+	}
+	_ = store.Save("sync-replace", layout)
+
+	mc := newSyncMockClient(
+		[]client.WorkspaceInfo{
+			{Ref: "workspace:1", Title: "dev"},
+			{Ref: "workspace:2", Title: "stale"},
+		},
+		"workspace:1", // caller is "dev"
+		"dev",
+	)
+
+	restorer := &Restorer{Client: mc, Store: store}
+	result, err := restorer.Restore("sync-replace", false, RestoreModeReplace, "")
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+
+	// "dev" should NOT be closed (it matches layout).
+	if mc.closedRefs["workspace:1"] {
+		t.Error("dev (workspace:1) should not be closed — it matches the layout")
+	}
+
+	// "stale" should be closed (not in layout).
+	if !mc.closedRefs["workspace:2"] {
+		t.Error("stale (workspace:2) should be closed — it's not in the layout")
+	}
+
+	// "docs" and "new-tab" should be created (not in existing).
+	if result.WorkspacesOK != 2 {
+		t.Errorf("WorkspacesOK = %d, want 2 (docs + new-tab)", result.WorkspacesOK)
+	}
+
+	if result.WorkspacesClosed != 1 {
+		t.Errorf("WorkspacesClosed = %d, want 1 (stale)", result.WorkspacesClosed)
+	}
+
+	// "dev" should be skipped (already exists), so only 2 created.
+	if mc.createdCount != 2 {
+		t.Errorf("createdCount = %d, want 2", mc.createdCount)
+	}
+}
+
+func TestRestore_Add_SkipsMatchingTitles(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := persist.NewFileStore(dir)
+
+	layout := &model.Layout{
+		Name:    "sync-add",
+		Version: 1,
+		SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{Title: "dev", CWD: "/tmp/dev", Index: 0, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+			{Title: "missing", CWD: "/tmp/missing", Index: 1, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+		},
+	}
+	_ = store.Save("sync-add", layout)
+
+	mc := newSyncMockClient(
+		[]client.WorkspaceInfo{
+			{Ref: "workspace:1", Title: "dev"},
+			{Ref: "workspace:2", Title: "extra"},
+		},
+		"workspace:1",
+		"dev",
+	)
+
+	restorer := &Restorer{Client: mc, Store: store}
+	result, err := restorer.Restore("sync-add", false, RestoreModeAdd, "")
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+
+	// "dev" should be skipped (already exists).
+	// "missing" should be created.
+	if result.WorkspacesOK != 1 {
+		t.Errorf("WorkspacesOK = %d, want 1 (missing)", result.WorkspacesOK)
+	}
+
+	// "extra" should NOT be closed in add mode.
+	if mc.closedRefs["workspace:2"] {
+		t.Error("extra (workspace:2) should not be closed in add mode")
+	}
+
+	// No workspaces should be closed.
+	if len(mc.closedRefs) != 0 {
+		t.Errorf("closedRefs = %v, want empty", mc.closedRefs)
+	}
+
+	if mc.createdCount != 1 {
+		t.Errorf("createdCount = %d, want 1", mc.createdCount)
+	}
+}
+
+func TestRestore_Replace_UnpinsBeforeClose(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := persist.NewFileStore(dir)
+
+	layout := &model.Layout{
+		Name:    "sync-unpin",
+		Version: 1,
+		SavedAt: time.Now().UTC(),
+		Workspaces: []model.Workspace{
+			{Title: "kept", CWD: "/tmp/kept", Index: 0, Panes: []model.Pane{{Type: "terminal", Focus: true, FocusTarget: -1}}},
+		},
+	}
+	_ = store.Save("sync-unpin", layout)
+
+	mc := newSyncMockClient(
+		[]client.WorkspaceInfo{
+			{Ref: "workspace:1", Title: "kept"},
+			{Ref: "workspace:2", Title: "pinned-stale"},
+		},
+		"workspace:1", // caller is "kept"
+		"kept",
+	)
+
+	restorer := &Restorer{Client: mc, Store: store}
+	result, err := restorer.Restore("sync-unpin", false, RestoreModeReplace, "")
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+
+	// "pinned-stale" should be unpinned THEN closed.
+	if !mc.unpinnedRefs["workspace:2"] {
+		t.Error("pinned-stale (workspace:2) should be unpinned before close")
+	}
+	if !mc.closedRefs["workspace:2"] {
+		t.Error("pinned-stale (workspace:2) should be closed")
+	}
+
+	// "kept" should NOT be unpinned or closed (it's the caller and matches layout).
+	if mc.unpinnedRefs["workspace:1"] {
+		t.Error("kept (workspace:1) should not be unpinned")
+	}
+	if mc.closedRefs["workspace:1"] {
+		t.Error("kept (workspace:1) should not be closed")
+	}
+
+	if result.WorkspacesClosed != 1 {
+		t.Errorf("WorkspacesClosed = %d, want 1", result.WorkspacesClosed)
+	}
 }

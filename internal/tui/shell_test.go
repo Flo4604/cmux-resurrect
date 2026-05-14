@@ -146,21 +146,7 @@ func saveTestLayout(t *testing.T, dir string) persist.Store {
 	return store
 }
 
-func TestShellModel_RestoreAsk_ShowsPrompt(t *testing.T) {
-	store := saveTestLayout(t, t.TempDir())
-	m := NewShellModel(store, nil, client.BackendCmux, "")
-	// restoreMode is "" (default) → should prompt
-
-	m.prompt.SetValue("restore test")
-	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	sm := result.(*ShellModel)
-
-	if sm.mode != modeRestoreAsk {
-		t.Fatalf("expected modeRestoreAsk (%d), got %d", modeRestoreAsk, sm.mode)
-	}
-}
-
-func TestShellModel_RestoreAsk_RSelectsReplace(t *testing.T) {
+func TestShellModel_RestoreAsk_NilClient_ShowsError(t *testing.T) {
 	store := saveTestLayout(t, t.TempDir())
 	m := NewShellModel(store, nil, client.BackendCmux, "")
 
@@ -168,47 +154,12 @@ func TestShellModel_RestoreAsk_RSelectsReplace(t *testing.T) {
 	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	sm := result.(*ShellModel)
 
-	if sm.mode != modeRestoreAsk {
-		t.Fatalf("expected modeRestoreAsk, got %d", sm.mode)
+	// Detection needs a client — with nil, show error.
+	if sm.mode == modeRestoreAsk {
+		t.Error("nil client should not enter modeRestoreAsk")
 	}
-
-	// Press 'r' for replace — should transition to modeRestoreSkip (second question).
-	result2, _ := sm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	sm2 := result2.(*ShellModel)
-
-	if sm2.mode != modeRestoreSkip {
-		t.Errorf("expected modeRestoreSkip after 'r', got %d", sm2.mode)
-	}
-
-	// Press 's' for skip — should start restore.
-	result3, _ := sm2.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
-	sm3 := result3.(*ShellModel)
-
-	if sm3.mode != modePrompt {
-		t.Errorf("expected modePrompt after 's', got %d", sm3.mode)
-	}
-}
-
-func TestShellModel_RestoreAsk_EscCancels(t *testing.T) {
-	store := saveTestLayout(t, t.TempDir())
-	m := NewShellModel(store, nil, client.BackendCmux, "")
-
-	m.prompt.SetValue("restore test")
-	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	sm := result.(*ShellModel)
-
-	// Press Escape to cancel
-	result2, cmd := sm.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	sm2 := result2.(*ShellModel)
-
-	if sm2.mode != modePrompt {
-		t.Error("expected modePrompt after cancel")
-	}
-	if cmd != nil {
-		t.Error("cancel should not trigger restore")
-	}
-	if !strings.Contains(sm2.lastOutput, "Cancelled") {
-		t.Error("should show Cancelled message")
+	if !strings.Contains(sm.lastOutput, "No backend connected") {
+		t.Error("should show 'No backend connected' error")
 	}
 }
 

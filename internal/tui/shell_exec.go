@@ -156,17 +156,45 @@ func (m *ShellModel) execSave(name string) {
 
 // execRestore restores a saved layout by name, optionally filtered to a single workspace.
 func (m *ShellModel) execRestore(name string, workspaceFilter string) tea.Cmd {
-	// Determine mode from setting.
+	// Explicit mode from settings — skip detection.
 	switch m.restoreMode {
 	case "replace":
 		return m.startRestore(name, workspaceFilter, orchestrate.RestoreModeReplace, true)
 	case "add":
 		return m.startRestore(name, workspaceFilter, orchestrate.RestoreModeAdd, true)
+	}
+
+	// "ask" or empty — detect state to decide which prompts to show.
+	if m.client == nil {
+		m.output.WriteString(shellErrorStyle.Render("  ✗ No backend connected"))
+		m.output.WriteString("\n\n")
+		return nil
+	}
+
+	layout, err := m.store.Load(name)
+	if err != nil {
+		m.output.WriteString(shellErrorStyle.Render(fmt.Sprintf("  ✗ %v", err)))
+		m.output.WriteString("\n\n")
+		return nil
+	}
+	titles := make([]string, len(layout.Workspaces))
+	for i, ws := range layout.Workspaces {
+		titles[i] = ws.Title
+	}
+	detection := orchestrate.DetectRestoreState(m.client, titles)
+
+	switch detection.Hint {
+	case orchestrate.HintNoop:
+		m.output.WriteString(shellDimStyle.Render("  Layout already matches current tabs. Nothing to do."))
+		m.output.WriteString("\n\n")
+		return nil
+	case orchestrate.HintAutoAdd:
+		return m.startRestore(name, workspaceFilter, orchestrate.RestoreModeAdd, true)
 	default:
-		// "ask" or empty — show the mode picker.
 		m.restoreAskName = name
 		m.restoreAskFilter = workspaceFilter
 		m.restoreAskCursor = 0
+		m.restoreAskHint = detection.Hint
 		m.mode = modeRestoreAsk
 		return nil
 	}

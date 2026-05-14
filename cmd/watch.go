@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"syscall"
 	"time"
 
@@ -121,29 +122,41 @@ func runWatch(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 
-		// Open log with 1MB rotation
-		logFile, err := orchestrate.OpenLogWriter(logPath, 1024*1024)
+		// If this is the re-exec'd child (sentinel env set), run the watch loop.
+		if os.Getenv("_CREX_DAEMON") == "1" {
+			logFile, err := orchestrate.OpenLogWriter(logPath, 1024*1024)
+			if err != nil {
+				return fmt.Errorf("open log: %w", err)
+			}
+			if err := orchestrate.WritePIDFile(pidPath, os.Getpid()); err != nil {
+				_ = logFile.Close()
+				return fmt.Errorf("write pid: %w", err)
+			}
+			watcher.LogWriter = logFile
+			defer func() {
+				orchestrate.RemovePIDFile(pidPath)
+				_ = logFile.Close()
+			}()
+			return watcher.Run()
+		}
+
+		// Parent: fork-detach a child process with setsid.
+		exe, err := os.Executable()
 		if err != nil {
-			return fmt.Errorf("open log: %w", err)
+			return fmt.Errorf("find executable: %w", err)
 		}
-
-		// Write PID file
-		if err := orchestrate.WritePIDFile(pidPath, os.Getpid()); err != nil {
-			_ = logFile.Close()
-			return fmt.Errorf("write pid: %w", err)
+		child := exec.Command(exe, os.Args[1:]...)
+		child.Env = append(os.Environ(), "_CREX_DAEMON=1")
+		child.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		child.Stdin = nil
+		child.Stdout = nil
+		child.Stderr = nil
+		if err := child.Start(); err != nil {
+			return fmt.Errorf("start daemon: %w", err)
 		}
-
-		watcher.LogWriter = logFile
-
 		fmt.Fprintf(os.Stderr, "%s  pid %d  log %s\n",
-			greenStyle.Render("crex watch daemon started"), os.Getpid(), dimStyle.Render(logPath))
-
-		defer func() {
-			orchestrate.RemovePIDFile(pidPath)
-			_ = logFile.Close()
-		}()
-
-		return watcher.Run()
+			greenStyle.Render("crex watch daemon started"), child.Process.Pid, dimStyle.Render(logPath))
+		return nil
 	}
 
 	// Foreground mode

@@ -40,6 +40,9 @@ type Backend interface {
 	// PinWorkspace pins a workspace in the sidebar.
 	PinWorkspace(ref string) error
 
+	// UnpinWorkspace unpins a workspace in the sidebar.
+	UnpinWorkspace(ref string) error
+
 	// CloseWorkspace closes a workspace.
 	CloseWorkspace(ref string) error
 

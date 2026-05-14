@@ -147,9 +147,9 @@ func runRestore(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintf(os.Stderr, "%s %s\n", yellowStyle.Render("👁️  Dry-run restore of"), greenStyle.Render(name))
 	} else {
-		action := "🔄 Replacing with"
+		action := "🔄 Syncing (replace)"
 		if mode == orchestrate.RestoreModeAdd {
-			action = "➕ Adding from"
+			action = "➕ Syncing (add)"
 		}
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintf(os.Stderr, "%s %s\n", yellowStyle.Render(action), greenStyle.Render(name))

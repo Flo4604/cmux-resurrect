@@ -43,6 +43,8 @@ completions/
 CLAUDE.md
 .claude/
 .superpowers/
+docs/superpowers/
+outputs/
 
 # ClaudeMap artifacts
 claudemap-*.json

@@ -836,3 +836,44 @@ func (m *ShellModel) execBpToggle(name string) {
 	m.output.WriteString("\n\n")
 	m.completer.Invalidate()
 }
+
+// execUpdate checks for a newer crex release and updates if possible.
+func (m *ShellModel) execUpdate() {
+	m.output.WriteString(shellDimStyle.Render("  Checking for updates..."))
+	m.output.WriteString("\n")
+
+	result := orchestrate.RunUpdate(m.version)
+
+	if result.Err != nil && result.NewVersion == "" {
+		m.writeError(fmt.Sprintf("%v", result.Err))
+		return
+	}
+
+	fmt.Fprintf(m.output, "  Current: %s  Latest: %s\n",
+		shellDimStyle.Render(result.OldVersion),
+		shellSuccessStyle.Render(result.NewVersion))
+
+	if result.AlreadyLatest {
+		m.output.WriteString(shellSuccessStyle.Render("  ✓ Already at the latest version."))
+		m.output.WriteString("\n\n")
+		return
+	}
+
+	fmt.Fprintf(m.output, "  Detected install method: %s\n", shellDimStyle.Render(result.Method.String()))
+
+	if result.Method == orchestrate.InstallManual {
+		fmt.Fprintf(m.output, "  Download the latest release at:\n  %s\n\n", result.ManualURL)
+		return
+	}
+
+	m.output.WriteString(shellDimStyle.Render("  Updating..."))
+	m.output.WriteString("\n")
+
+	if result.Err != nil {
+		m.writeError(fmt.Sprintf("Update failed: %v", result.Err))
+		return
+	}
+
+	m.output.WriteString(shellSuccessStyle.Render(fmt.Sprintf("  ✓ Updated to %s", result.NewVersion)))
+	m.output.WriteString("\n\n")
+}

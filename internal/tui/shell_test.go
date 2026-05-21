@@ -12,7 +12,7 @@ import (
 )
 
 func TestShellModel_WelcomeInInit(t *testing.T) {
-	m := NewShellModel(nil, nil, client.BackendGhostty, "")
+	m := NewShellModel(nil, nil, client.BackendGhostty, "", "dev")
 	if !strings.Contains(m.welcome, "crex") {
 		t.Error("welcome should contain 'crex'")
 	}
@@ -22,14 +22,14 @@ func TestShellModel_WelcomeInInit(t *testing.T) {
 }
 
 func TestShellModel_StartsInPromptMode(t *testing.T) {
-	m := NewShellModel(nil, nil, client.BackendGhostty, "")
+	m := NewShellModel(nil, nil, client.BackendGhostty, "", "dev")
 	if m.mode != modePrompt {
 		t.Errorf("expected modePrompt, got %v", m.mode)
 	}
 }
 
 func TestShellModel_ViewShowsPromptAndWelcome(t *testing.T) {
-	m := NewShellModel(nil, nil, client.BackendGhostty, "")
+	m := NewShellModel(nil, nil, client.BackendGhostty, "", "dev")
 	view := m.View()
 	if !strings.Contains(view, "crex") {
 		t.Error("view should show the prompt with crex")
@@ -41,7 +41,7 @@ func TestShellModel_ViewShowsPromptAndWelcome(t *testing.T) {
 }
 
 func TestShellModel_ExitQuits(t *testing.T) {
-	m := NewShellModel(nil, nil, client.BackendGhostty, "")
+	m := NewShellModel(nil, nil, client.BackendGhostty, "", "dev")
 	m.prompt.SetValue("exit")
 
 	result, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -56,7 +56,7 @@ func TestShellModel_ExitQuits(t *testing.T) {
 }
 
 func TestShellModel_HelpProducesOutput(t *testing.T) {
-	m := NewShellModel(nil, nil, client.BackendGhostty, "")
+	m := NewShellModel(nil, nil, client.BackendGhostty, "", "dev")
 	m.prompt.SetValue("help")
 
 	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -70,7 +70,7 @@ func TestShellModel_HelpProducesOutput(t *testing.T) {
 }
 
 func TestShellModel_UnknownCommand(t *testing.T) {
-	m := NewShellModel(nil, nil, client.BackendGhostty, "")
+	m := NewShellModel(nil, nil, client.BackendGhostty, "", "dev")
 	m.prompt.SetValue("wat")
 
 	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -83,7 +83,7 @@ func TestShellModel_UnknownCommand(t *testing.T) {
 }
 
 func TestShellModel_EmptyEnterDoesNothing(t *testing.T) {
-	m := NewShellModel(nil, nil, client.BackendGhostty, "")
+	m := NewShellModel(nil, nil, client.BackendGhostty, "", "dev")
 	m.prompt.SetValue("")
 
 	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -98,7 +98,7 @@ func TestShellModel_EmptyEnterDoesNothing(t *testing.T) {
 }
 
 func TestShellModel_HistoryRecordsCommands(t *testing.T) {
-	m := NewShellModel(nil, nil, client.BackendGhostty, "")
+	m := NewShellModel(nil, nil, client.BackendGhostty, "", "dev")
 
 	m.prompt.SetValue("help")
 	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -113,7 +113,7 @@ func TestShellModel_HistoryRecordsCommands(t *testing.T) {
 }
 
 func TestShellModel_CtrlCQuits(t *testing.T) {
-	m := NewShellModel(nil, nil, client.BackendGhostty, "")
+	m := NewShellModel(nil, nil, client.BackendGhostty, "", "dev")
 
 	result, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	sm := result.(*ShellModel)
@@ -148,7 +148,7 @@ func saveTestLayout(t *testing.T, dir string) persist.Store {
 
 func TestShellModel_RestoreAsk_NilClient_ShowsError(t *testing.T) {
 	store := saveTestLayout(t, t.TempDir())
-	m := NewShellModel(store, nil, client.BackendCmux, "")
+	m := NewShellModel(store, nil, client.BackendCmux, "", "dev")
 
 	m.prompt.SetValue("restore test")
 	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -165,7 +165,7 @@ func TestShellModel_RestoreAsk_NilClient_ShowsError(t *testing.T) {
 
 func TestShellModel_RestoreExplicitMode_SkipsPrompt(t *testing.T) {
 	store := saveTestLayout(t, t.TempDir())
-	m := NewShellModel(store, nil, client.BackendCmux, "")
+	m := NewShellModel(store, nil, client.BackendCmux, "", "dev")
 	m.SetRestoreMode("add")
 
 	m.prompt.SetValue("restore test")
@@ -184,7 +184,7 @@ func TestShellModel_RestoreExplicitMode_SkipsPrompt(t *testing.T) {
 }
 
 func TestShellModel_ConfirmFnError_NoSuccessMsg(t *testing.T) {
-	m := NewShellModel(nil, nil, client.BackendCmux, "")
+	m := NewShellModel(nil, nil, client.BackendCmux, "", "dev")
 
 	// Set up a confirmFn that writes an error.
 	m.mode = modeConfirm

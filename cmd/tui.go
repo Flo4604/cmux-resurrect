@@ -30,7 +30,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	cl := newClient()
 	backend := cachedBackend
 
-	m := tui.NewShellModel(store, cl, backend, cfg.WorkspaceFile)
+	m := tui.NewShellModel(store, cl, backend, cfg.WorkspaceFile, Version)
 	style := cfg.BannerStyle
 	if style == "" {
 		style = "flame"

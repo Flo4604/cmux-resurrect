@@ -53,6 +53,9 @@ type ShellModel struct {
 	bannerStyle      string // current banner style for "banner get"
 	restoreMode      string // current restore mode for "settings restore-mode get"
 
+	// Version string (injected by cmd layer for update command).
+	version string
+
 	// Tab completion
 	completer     completionEngine
 	tabCandidates []string         // candidates being cycled
@@ -72,7 +75,7 @@ type ShellModel struct {
 }
 
 // NewShellModel creates the interactive shell model.
-func NewShellModel(store persist.Store, cl client.Backend, backend client.DetectedBackend, wsFile string) *ShellModel {
+func NewShellModel(store persist.Store, cl client.Backend, backend client.DetectedBackend, wsFile string, version string) *ShellModel {
 	ti := textinput.New()
 	ti.Prompt = "  " + shellSuccessStyle.Render("crex") + " " + shellFlameStyle.Render("→") + " "
 	ti.Focus()
@@ -109,6 +112,7 @@ func NewShellModel(store persist.Store, cl client.Backend, backend client.Detect
 		wsFile:     wsFile,
 		histIdx:    -1,
 		welcome:    w.String(),
+		version:    version,
 		completer:  completionEngine{store: store, wsFile: wsFile},
 	}
 }
@@ -724,6 +728,9 @@ func (m *ShellModel) dispatch(input string) (tea.Model, tea.Cmd) {
 		fmt.Fprintf(m.output, "    %s  always replace existing workspaces\n", shellSuccessStyle.Render("replace"))
 		fmt.Fprintf(m.output, "    %s  always add alongside existing workspaces\n", shellSuccessStyle.Render("add    "))
 		m.output.WriteString("\n")
+
+	case "update":
+		m.execUpdate()
 
 	default:
 		// Redirect old "banner" commands to "settings banner".

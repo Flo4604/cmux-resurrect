@@ -1,0 +1,116 @@
+# crex Feature Inventory
+# Machine-readable matrix of features x backends x platforms.
+# Status: supported, unsupported, inferred, planned, experimental
+
+version: 1
+updated: "2026-05-21"
+
+backends:
+  cmux:
+    platforms: [macos, linux]
+    status: stable
+  ghostty:
+    platforms: [macos]
+    status: stable
+    notes: "AppleScript API; libghostty planned for Linux"
+
+features:
+  - name: save
+    description: Capture current terminal state to TOML
+    cmux: supported
+    ghostty: supported
+
+  - name: restore
+    description: Recreate workspaces from saved layout
+    cmux: supported
+    ghostty: supported
+
+  - name: watch-daemon
+    description: Auto-save on interval with change detection
+    cmux: supported
+    ghostty: supported
+
+  - name: templates
+    description: Embedded workspace templates (16 built-in)
+    cmux: supported
+    ghostty: supported
+
+  - name: browser-panes
+    description: Save/restore browser panes
+    cmux: supported
+    ghostty: unsupported
+    notes: "Ghostty opens URL in default browser instead"
+
+  - name: split-direction
+    description: Preserve pane split direction
+    cmux: inferred
+    ghostty: inferred
+    notes: "Neither backend exposes split direction; defaults to right"
+
+  - name: per-pane-cwd
+    description: Individual pane working directories
+    cmux: unsupported
+    ghostty: unsupported
+    notes: "Both backends return workspace-level CWD only"
+
+  - name: ai-session-detection
+    description: Detect and restore AI CLI sessions
+    cmux: supported
+    ghostty: supported
+    notes: "Claude Code, OpenCode, Codex"
+
+  - name: workspace-blueprint
+    description: Markdown workspace definitions
+    cmux: supported
+    ghostty: supported
+
+  - name: tui
+    description: Interactive terminal UI (Bubble Tea)
+    cmux: supported
+    ghostty: supported
+
+  - name: shell-hook
+    description: Auto-start watch from shell prompt
+    cmux: supported
+    ghostty: supported
+
+  - name: revision-tracking
+    description: Monotonic revision counter on layout saves
+    cmux: supported
+    ghostty: supported
+
+  - name: stability-wait
+    description: Evidence-based shell readiness detection
+    cmux: supported
+    ghostty: supported
+
+  - name: ensure-workspace
+    description: Single-call create-or-reuse workspace API
+    cmux: supported
+    ghostty: supported
+
+  - name: dry-run
+    description: Preview restore commands without executing
+    cmux: supported
+    ghostty: supported
+
+  - name: workspace-filter
+    description: Restore single workspace by name/substring
+    cmux: supported
+    ghostty: supported
+
+  - name: smart-restore
+    description: Auto-detect restore mode from terminal state
+    cmux: supported
+    ghostty: supported
+
+  - name: import-export
+    description: Import/export layouts as markdown
+    cmux: supported
+    ghostty: supported
+
+  - name: launchd
+    description: macOS launchd service for watch daemon
+    cmux: supported
+    ghostty: unsupported
+    notes: "Uses cmux socket path detection"

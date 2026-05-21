@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/drolosoft/cmux-resurrect/internal/client"
+	"github.com/drolosoft/cmux-resurrect/internal/model"
 	"github.com/drolosoft/cmux-resurrect/internal/persist"
 )
 
@@ -210,5 +212,101 @@ func TestSave_PreservesWorkspaceDescription(t *testing.T) {
 		if got := layout2.Workspaces[i].Description; got != "" {
 			t.Errorf("Workspaces[%d].Description = %q, want empty", i, got)
 		}
+	}
+}
+
+// --- layoutContentChanged tests ---
+
+func baseLayout() *model.Layout {
+	return &model.Layout{
+		Name:        "test",
+		Description: "desc",
+		Version:     1,
+		Revision:    0,
+		SavedAt:     time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Workspaces: []model.Workspace{
+			{
+				Title:  "ws1",
+				CWD:    "/home/user",
+				Pinned: false,
+				Active: true,
+				Panes: []model.Pane{
+					{Type: "terminal", Split: "", Command: "vim", URL: "", Focus: true},
+					{Type: "terminal", Split: "right", Command: "make watch", URL: "", Focus: false},
+				},
+			},
+		},
+	}
+}
+
+func TestLayoutContentChanged_Identical(t *testing.T) {
+	a := baseLayout()
+	b := baseLayout()
+	if layoutContentChanged(a, b) {
+		t.Error("identical layouts should not be changed")
+	}
+}
+
+func TestLayoutContentChanged_DifferentWorkspaceCount(t *testing.T) {
+	a := baseLayout()
+	b := baseLayout()
+	b.Workspaces = append(b.Workspaces, model.Workspace{
+		Title: "ws2",
+		CWD:   "/home/user/extra",
+		Panes: []model.Pane{{Type: "terminal"}},
+	})
+	if !layoutContentChanged(a, b) {
+		t.Error("different workspace count should report changed")
+	}
+}
+
+func TestLayoutContentChanged_DifferentCommand(t *testing.T) {
+	a := baseLayout()
+	b := baseLayout()
+	b.Workspaces[0].Panes[0].Command = "nvim"
+	if !layoutContentChanged(a, b) {
+		t.Error("different pane command should report changed")
+	}
+}
+
+func TestLayoutContentChanged_DifferentPaneCount(t *testing.T) {
+	a := baseLayout()
+	b := baseLayout()
+	b.Workspaces[0].Panes = b.Workspaces[0].Panes[:1]
+	if !layoutContentChanged(a, b) {
+		t.Error("different pane count should report changed")
+	}
+}
+
+func TestLayoutContentChanged_IgnoresDescription(t *testing.T) {
+	a := baseLayout()
+	b := baseLayout()
+	b.Description = "completely different description"
+	b.Workspaces[0].Description = "pane-level description"
+	if layoutContentChanged(a, b) {
+		t.Error("description-only difference should not report changed")
+	}
+}
+
+func TestLayoutContentChanged_IgnoresSavedAt(t *testing.T) {
+	a := baseLayout()
+	b := baseLayout()
+	b.SavedAt = time.Now().Add(24 * time.Hour)
+	b.Revision = 42
+	if layoutContentChanged(a, b) {
+		t.Error("SavedAt/Revision-only difference should not report changed")
+	}
+}
+
+func TestLayoutContentChanged_NilHandling(t *testing.T) {
+	a := baseLayout()
+	if !layoutContentChanged(nil, a) {
+		t.Error("nil vs non-nil should report changed")
+	}
+	if !layoutContentChanged(a, nil) {
+		t.Error("non-nil vs nil should report changed")
+	}
+	if layoutContentChanged(nil, nil) {
+		t.Error("nil vs nil should not report changed")
 	}
 }

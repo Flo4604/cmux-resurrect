@@ -7,6 +7,7 @@ type Layout struct {
 	Name        string      `toml:"name"`
 	Description string      `toml:"description,omitempty"`
 	Version     int         `toml:"version"`
+	Revision    uint64      `toml:"revision"`
 	SavedAt     time.Time   `toml:"saved_at"`
 	Workspaces  []Workspace `toml:"workspace"`
 }

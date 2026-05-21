@@ -391,6 +391,33 @@ func titleMatchesAI(title string, patterns []string) bool {
 	return false
 }
 
+// layoutContentChanged compares the structural content of two layouts,
+// ignoring metadata fields (SavedAt, Description, Revision).
+func layoutContentChanged(a, b *model.Layout) bool {
+	if a == nil || b == nil {
+		return a != b
+	}
+	if len(a.Workspaces) != len(b.Workspaces) {
+		return true
+	}
+	for i := range a.Workspaces {
+		wa, wb := &a.Workspaces[i], &b.Workspaces[i]
+		if wa.Title != wb.Title || wa.CWD != wb.CWD || wa.Pinned != wb.Pinned || wa.Active != wb.Active {
+			return true
+		}
+		if len(wa.Panes) != len(wb.Panes) {
+			return true
+		}
+		for j := range wa.Panes {
+			pa, pb := &wa.Panes[j], &wb.Panes[j]
+			if pa.Type != pb.Type || pa.Split != pb.Split || pa.Command != pb.Command || pa.URL != pb.URL || pa.Focus != pb.Focus {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // mergeUserEdits preserves user-edited fields from an existing TOML.
 // Fields like split direction, command, and description are kept from existing
 // if the user has edited them (since the live tree doesn't expose these).

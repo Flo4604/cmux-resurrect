@@ -10,23 +10,27 @@ import (
 
 // Config holds global configuration for crex.
 type Config struct {
-	LayoutsDir       string        `toml:"layouts_dir"`
-	WorkspaceFile    string        `toml:"workspace_file"`
-	WatchInterval    time.Duration `toml:"-"`
-	WatchIntervalStr string        `toml:"watch_interval"`
-	MaxAutosaves     int           `toml:"max_autosaves"` // TODO: not yet enforced — rotation not implemented
-	BannerStyle      string        `toml:"banner_style"`  // "flame" (default), "classic", "plain"
-	RestoreMode      string        `toml:"restore_mode"`  // "ask" (default when empty), "replace", "add"
+	LayoutsDir        string        `toml:"layouts_dir"`
+	WorkspaceFile     string        `toml:"workspace_file"`
+	WatchInterval     time.Duration `toml:"-"`
+	WatchIntervalStr  string        `toml:"watch_interval"`
+	MaxAutosaves      int           `toml:"max_autosaves"` // TODO: not yet enforced — rotation not implemented
+	BannerStyle       string        `toml:"banner_style"`  // "flame" (default), "classic", "plain"
+	RestoreMode       string        `toml:"restore_mode"`  // "ask" (default when empty), "replace", "add"
+	StableDuration    time.Duration `toml:"-"`
+	StableDurationStr string        `toml:"stable_duration"`
 }
 
 // DefaultConfig returns the default configuration.
 func DefaultConfig() *Config {
 	return &Config{
-		LayoutsDir:       DefaultLayoutsDir(),
-		WorkspaceFile:    DefaultWorkspaceFile(),
-		WatchInterval:    5 * time.Minute,
-		WatchIntervalStr: "5m",
-		MaxAutosaves:     10,
+		LayoutsDir:        DefaultLayoutsDir(),
+		WorkspaceFile:     DefaultWorkspaceFile(),
+		WatchInterval:     5 * time.Minute,
+		WatchIntervalStr:  "5m",
+		MaxAutosaves:      10,
+		StableDuration:    3 * time.Second,
+		StableDurationStr: "3s",
 	}
 }
 
@@ -85,6 +89,11 @@ func Load(path string) (*Config, error) {
 	if cfg.WatchIntervalStr != "" {
 		if d, err := time.ParseDuration(cfg.WatchIntervalStr); err == nil {
 			cfg.WatchInterval = d
+		}
+	}
+	if cfg.StableDurationStr != "" {
+		if d, err := time.ParseDuration(cfg.StableDurationStr); err == nil {
+			cfg.StableDuration = d
 		}
 	}
 	// Expand ~ in paths.

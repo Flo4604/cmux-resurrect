@@ -109,6 +109,12 @@ features:
     cmux: supported
     ghostty: supported
 
+  - name: self-update
+    description: Update crex from CLI or TUI (Homebrew, go install)
+    cmux: supported
+    ghostty: supported
+    notes: "Detects install method, checks GitHub API for latest release"
+
   - name: launchd
     description: macOS launchd service for watch daemon
     cmux: supported

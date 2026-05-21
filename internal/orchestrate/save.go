@@ -59,8 +59,11 @@ func (s *Saver) Save(name, description string) (*model.Layout, error) {
 		return nil, fmt.Errorf("no workspaces could be captured")
 	}
 
+	// Load existing layout for merge and revision tracking.
+	existing, loadErr := s.Store.Load(name)
+
 	// If a TOML already exists, merge user-edited fields (split direction, commands).
-	if existing, err := s.Store.Load(name); err == nil {
+	if loadErr == nil {
 		mergeUserEdits(layout, existing)
 	}
 
@@ -78,6 +81,17 @@ func (s *Saver) Save(name, description string) (*model.Layout, error) {
 		debugDetection(layout, win.Workspaces)
 	}
 	applyDetectedSessions(layout, win.Workspaces, detected)
+
+	// Track revision: increment if content changed, preserve if identical.
+	if loadErr == nil && existing != nil {
+		if layoutContentChanged(layout, existing) {
+			layout.Revision = existing.Revision + 1
+		} else {
+			layout.Revision = existing.Revision
+		}
+	} else {
+		layout.Revision = 1
+	}
 
 	if err := s.Store.Save(name, layout); err != nil {
 		return nil, fmt.Errorf("save layout: %w", err)

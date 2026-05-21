@@ -215,6 +215,95 @@ func TestSave_PreservesWorkspaceDescription(t *testing.T) {
 	}
 }
 
+// --- Revision tracking tests ---
+
+func TestSave_RevisionIncrements(t *testing.T) {
+	data, err := os.ReadFile("../../testdata/responses/tree-6-workspaces.json")
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	var treeResp client.TreeResponse
+	if err := json.Unmarshal(data, &treeResp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	mc := &mockClient{
+		treeResp: &treeResp,
+		sidebarCWDs: map[string]string{
+			"workspace:1": "/home/user/projects/api-server",
+			"workspace:2": "/home/user/Documents/notes",
+			"workspace:3": "/home/user/projects/webapp",
+		},
+	}
+
+	dir := t.TempDir()
+	store, _ := persist.NewFileStore(dir)
+	saver := &Saver{Client: mc, Store: store}
+
+	// First save → Revision should be 1.
+	layout1, err := saver.Save("rev-test", "")
+	if err != nil {
+		t.Fatalf("first save: %v", err)
+	}
+	if layout1.Revision != 1 {
+		t.Errorf("first save: Revision = %d, want 1", layout1.Revision)
+	}
+
+	// Second save with same state → Revision should stay 1 (no content change).
+	layout2, err := saver.Save("rev-test", "")
+	if err != nil {
+		t.Fatalf("second save: %v", err)
+	}
+	if layout2.Revision != 1 {
+		t.Errorf("second save (same state): Revision = %d, want 1", layout2.Revision)
+	}
+}
+
+func TestSave_RevisionIncrementsOnChange(t *testing.T) {
+	data, err := os.ReadFile("../../testdata/responses/tree-6-workspaces.json")
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	var treeResp client.TreeResponse
+	if err := json.Unmarshal(data, &treeResp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	mc := &mockClient{
+		treeResp: &treeResp,
+		sidebarCWDs: map[string]string{
+			"workspace:1": "/home/user/projects/api-server",
+			"workspace:2": "/home/user/Documents/notes",
+			"workspace:3": "/home/user/projects/webapp",
+		},
+	}
+
+	dir := t.TempDir()
+	store, _ := persist.NewFileStore(dir)
+	saver := &Saver{Client: mc, Store: store}
+
+	// First save → Revision = 1.
+	layout1, err := saver.Save("rev-change-test", "")
+	if err != nil {
+		t.Fatalf("first save: %v", err)
+	}
+	if layout1.Revision != 1 {
+		t.Errorf("first save: Revision = %d, want 1", layout1.Revision)
+	}
+
+	// Change CWD for workspace:1 — this will produce different content.
+	mc.sidebarCWDs["workspace:1"] = "/home/user/projects/different-path"
+
+	// Second save → Revision should be 2.
+	layout2, err := saver.Save("rev-change-test", "")
+	if err != nil {
+		t.Fatalf("second save: %v", err)
+	}
+	if layout2.Revision != 2 {
+		t.Errorf("second save (changed state): Revision = %d, want 2", layout2.Revision)
+	}
+}
+
 // --- layoutContentChanged tests ---
 
 func baseLayout() *model.Layout {

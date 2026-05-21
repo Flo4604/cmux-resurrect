@@ -13,6 +13,16 @@ const PLAYWRIGHT_PATH = '/Users/txeo/.nvm/versions/node/v23.11.0/lib/node_module
 const { chromium } = require(PLAYWRIGHT_PATH);
 const fs = require('fs');
 const path = require('path');
+const {
+  getTerminalContent,
+  getByText,
+  waitForText,
+  waitForStable,
+  expectVisible,
+  expectNotVisible,
+  sendCommand: sendCmd,
+  sleep: helperSleep,
+} = require('./e2e-helpers');
 
 // --- CLI args ---
 

@@ -2,7 +2,6 @@ package orchestrate
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -14,7 +13,7 @@ import (
 	"github.com/drolosoft/cmux-resurrect/internal/persist"
 )
 
-// Watcher periodically saves the cmux layout, deduplicating via content hash.
+// Watcher periodically saves the cmux layout, deduplicating via revision number.
 type Watcher struct {
 	Client        client.Backend
 	Store         persist.Store
@@ -23,7 +22,7 @@ type Watcher struct {
 	WorkspaceFile string    // MD file path; if set, also updates the MD on each tick
 	LogWriter     io.Writer // if set, log to this writer instead of stderr
 
-	lastHash string
+	lastRevision uint64
 }
 
 func (w *Watcher) logWriter() io.Writer {
@@ -64,14 +63,10 @@ func (w *Watcher) saveOnce() {
 		return
 	}
 
-	// Compute hash to detect changes.
-	data, _ := os.ReadFile(w.Store.Path(w.Name))
-	hash := fmt.Sprintf("%x", sha256.Sum256(data))
-
-	if hash == w.lastHash {
+	if layout.Revision == w.lastRevision {
 		return // no change, skip logging and MD update
 	}
-	w.lastHash = hash
+	w.lastRevision = layout.Revision
 
 	// Also update the MD file if configured.
 	if w.WorkspaceFile != "" {
@@ -81,7 +76,8 @@ func (w *Watcher) saveOnce() {
 		}
 	}
 
-	_, _ = fmt.Fprintf(w.logWriter(), "  saved %d workspaces at %s\n",
+	_, _ = fmt.Fprintf(w.logWriter(), "  saved %d workspaces (rev %d) at %s\n",
 		len(layout.Workspaces),
+		layout.Revision,
 		time.Now().Format("15:04:05"))
 }
